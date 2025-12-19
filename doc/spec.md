@@ -11,7 +11,7 @@
 - **Gloss**: 上段本文（表示の主文字列）に対し、下段に 1 行以上の別表記（英語・転写・別言語など）を添える（例: `{微分係数/derivative}`、`{佛罗伦萨/Firenze/Florence}`）。
 - **Math**: `$...$` / `$$...$$` を「数式区間」として扱い、区間内部の `[]` `{}` `/` が Gloss/Ruby と誤解釈されないようにする。
 
-> 注: KaTeX で `$...$` を自動レンダリングしたい場合、利用環境によっては auto-render の delimiters 設定で `$` を追加する必要がある。citeturn0search1turn0search4turn0search6
+> 注: KaTeX などの auto-render を使う場合、利用環境によっては `$...$` を delimiters に追加設定する必要がある。
 
 ---
 
@@ -80,13 +80,19 @@ Gloss の各行は「本文的に表示されるテキスト」なので、Ruby 
 
 - 例: `\[` は「`[`」として扱う（Ruby の開始ではない）
 - 例: `\{` は「`{`」として扱う（Gloss の開始ではない）
-- 例: `\/` は「`/`」として扱う（Gloss の区切りではない）
+- 例: `\/` は「`/`」として扱う（Gloss/Ruby の区切りではない）
 
-### 4.3 `$` の扱い
+### 4.3 エスケープの“除去”（規範）
+
+- **Plain.text / Ruby.reading / Gloss の Plain**: エスケープは **除去して格納**する  
+  例: 入力 `\[` → AST では `"["`
+- **Math.tex**: delimiters（`$` / `$$`）は除去するが、`tex` 本体は **入力のまま格納**する（`\` を含む TeX を保持する）
+
+### 4.4 `$` の扱い
 
 - Ruby/Gloss の字句解析における「特別文字」は §4.1 の 5 文字（＋`\`）である。
 - **Math スキャナ**は `$` と `$$` を特別扱いする（§7）。
-- `\$` は「リテラル `$`」として扱える（§7.3）。citeturn0search6turn0search2
+- `\$` は「リテラル `$`」として扱える（§7.3）。
 
 ---
 
@@ -102,10 +108,13 @@ RubyBlock := '[' RubyBase '/' RubyReading ']'
     - `/` が存在しない（例: `[abc]`）場合、その `[` は Ruby 開始とみなさず **Plain** として処理する。
 - `base` と `reading` は空文字列でもよい（推奨しない）。
 
-### 5.2 `/` の解釈（規範）
+### 5.2 区切り `/` と閉じ `]`（規範）
 
-- **最初の 1 回だけ** `/` を区切りとして扱い、以降の `/` は `reading` の一部として扱う。
-    - 例: `[a/b/c]` は `base="a"`, `reading="b/c"` と解釈する。
+- base と reading の区切りは、RubyBlock 内で最初に現れる **未エスケープ `/`** とする。
+- RubyBlock の終端は、reading 内で最初に現れる **未エスケープ `]`** とする。
+- `/` や `]` を通常文字として含めたい場合は `\/`、`\]` のようにエスケープする。
+
+> 注: RubyBase では Math を解釈できるため、Math 内の `/` は区切りとして数えない（§8.2）。
 
 ### 5.3 RubyBase（規範）
 
@@ -115,7 +124,7 @@ RubyBlock := '[' RubyBase '/' RubyReading ']'
 
 ### 5.4 RubyReading（規範）
 
-- RubyReading は **生文字列**（String）として保持する。
+- RubyReading は **生文字列**（String）として保持する（§4.3 のエスケープ除去は適用する）。
 - RubyReading 内では **Gloss/Ruby/Math の再帰解析を行わない**。
 
 ### 5.5 禁止事項（規範）
@@ -139,22 +148,12 @@ GlossBlock := '{' GlossLine ( '/' GlossLine )* '}'
 
 - `GlossLine` は 1 行分の内容（GlossLine 型）であり、**Ruby と Math を含んでよい**。
 - `/` は **未エスケープ**かつ「Ruby/Math の外側」にあるときのみ、GlossLine の区切りとして働く。
+- GlossBlock の終端は、GlossBlock 内で最初に現れる **未エスケープ `}`** とする（Ruby/Math の外側）。
 
 ### 6.2 行数（規範）
 
 - `{main}`（`/` を含まない）も GlossBlock として許可する。
 - `{a//b}` のように空行を含む場合、空行は `segments=[]`（空）として扱う（推奨しない）。
-
-### 6.3 例（規範的解釈）
-
-- `{Nara/[奈良/なら]}`  
-  - `lines[0] = "Nara"`
-  - `lines[1] = Ruby("奈良","なら")`
-- `{[台湾/たいわん]/[台灣/Táiwān]}`
-  - `lines[0]` に Ruby を含みうる
-  - `lines[1]` に Ruby を含みうる
-- `{佛罗伦萨/Firenze/Florence}`
-  - `lines = ["佛罗伦萨", "Firenze", "Florence"]`
 
 ---
 
@@ -174,8 +173,11 @@ GlossBlock := '{' GlossLine ( '/' GlossLine )* '}'
 
 ### 7.3 エスケープ（規範）
 
-- 開始 `$`（または `$$`）の直前にある連続 `\` の個数が **奇数**のとき、当該 `$` はエスケープされた通常文字として扱う（数式開始ではない）。
-    - 例: `\$` はリテラル `$`（数式開始しない）citeturn0search6turn0search2
+- **開始 delimiter**（`$` または `$$`）は、直前の連続 `\` の個数が **奇数**のとき「エスケープされた通常文字」として扱い、Math を開始しない。
+- **終端 delimiter** も同様に、直前の連続 `\` の個数が奇数のとき終端として扱わない。
+- Math は「開始した delimiter と同じ delimiter」でのみ閉じる（`$` で開始したら `$` で閉じる、`$$` で開始したら `$$` で閉じる）。
+
+> 推奨: 終端探索では `\` を見たら次の 1 文字をスキップしてよい（TeX のエスケープとして扱う）。
 
 ---
 
@@ -195,13 +197,14 @@ GlossBlock 内部は次の規則で GlossLine を構築する。
 - `[` を見たら RubyBlock を試行（成功すれば Ruby を追加）
 - `$` / `$$` を見たら MathSegment を試行（成功すれば Math を追加）
 - `/` を見たら「未エスケープ」であり Ruby/Math の外側なら次の GlossLine を開始
-- `}` で GlossBlock 終了
+- `}`（未エスケープ）で GlossBlock 終了
 
 ### 8.2 RubyBase の解析（規範）
 
 RubyBase は **InlineSegment** 列として構築する。
 
 - `$` / `$$` を見たら MathSegment を試行（成功すれば Math を追加）
+- `/`（未エスケープ）を見たら RubyBase を終了し、RubyReading の解析へ移る
 - それ以外は Plain として蓄積する
 
 ---
@@ -211,7 +214,7 @@ RubyBase は **InlineSegment** 列として構築する。
 パーサーは「失敗した構文を壊さない」方針を採る。
 
 - RubyBlock:
-    - `]` が見つからない、`/` がない、未エスケープ `[` が内部にある等の場合は Ruby として解釈しない。
+    - `]` が見つからない、未エスケープ `/` がない、未エスケープ `[` が内部にある等の場合は Ruby として解釈しない。
 - GlossBlock:
     - `}` が見つからない場合は Gloss として解釈しない。
 - Math:
@@ -226,10 +229,11 @@ RubyBase は **InlineSegment** 列として構築する。
 
 ### 10.1 Ruby
 
-HTML の Ruby マークアップの利用を推奨する。citeturn0search3turn0search7turn0search10
+HTML の Ruby マークアップの利用を推奨する。
 
 - 省略形（簡潔）: `<ruby>base<rt>reading</rt></ruby>`
 - 明示形: `<ruby><rb>base</rb><rt>reading</rt></ruby>`
+- 互換性のため、必要に応じて `<rp>` を用いたフォールバック括弧表示を追加してよい。
 
 ### 10.2 Gloss
 
@@ -255,7 +259,8 @@ README の「`$` による TeX 数式記法を残す」を満たすため、HTML
 
 - `[私/わたし]` → Ruby(base="私", reading="わたし")
 - `[Text]` → Plain("[Text]")（`/` がないため）
-- `[a/b/c]` → Ruby(base="a", reading="b/c")（最初の `/` のみ区切り）
+- `[a/b/c]` → Ruby(base="a", reading="b/c")（最初の未エスケープ `/` のみ区切り）
+- `[AC\/DC/えーしーでぃーしー]` → base=`"AC/DC"`
 
 ### 11.2 Gloss（多段＋alt 内 Ruby）
 
@@ -270,4 +275,5 @@ README の「`$` による TeX 数式記法を残す」を満たすため、HTML
 
 - `x=$\frac{1}{2}$` → Plain("x="), Math(tex="\frac{1}{2}", display=false)
 - `$$a_{[/]}$$` → Math 内の `[/]` は Ruby として解釈しない（保護される）
-- `\$40 and $e=mc^2$` → `\$` はリテラル `$`、後半は Math（実装が §7.3 に従う場合）citeturn0search6turn0search2
+- `\$40 and $e=mc^2$` → 先頭 `\$` はリテラル `$`、後半は Math
+- `$\$100$` → Math.tex は `\$100`（終端 `$` と混同しない）
