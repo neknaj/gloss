@@ -1,15 +1,17 @@
 # Gloss Markup Specification (Draft v0.1)
 
-この文書は、Gloss 記法（`[base/reading]` と `{main/alt...}`）および `$...$` / `$$...$$` の数式区間を、**パーサーが生成する構文木（AST）**まで含めて厳密に定義する仕様書です。  
-本仕様は、現状の参照実装（JS パーサー）に合わせた **互換仕様** を主にしつつ、「多言語（複数 alt 行）」など Readme に書かれている将来拡張を **拡張仕様** として明示します。
+この文書は、Gloss 記法（`[base/reading]` と `{line1/line2/...}`）および `$...$` / `$$...$$` による数式区間を、**パーサーが生成する構文木（AST）**まで含めて定義する仕様書です。  
+本仕様は README に記載された「多言語（複数行）」「Gloss の下段でも Ruby を使う」例を **そのまま実現できる**ことを要件として策定します。
 
 ---
 
 ## 1. 目的
 
 - **Ruby**: ルビ（発音・転写・注釈）を簡潔に書く（例: `[漢字/かんじ]`）。
-- **Gloss**: 用語等の本文（上段）に対して、下段に別言語（英語など）を添える（例: `{微分係数/derivative}`）。
+- **Gloss**: 上段本文（表示の主文字列）に対し、下段に 1 行以上の別表記（英語・転写・別言語など）を添える（例: `{微分係数/derivative}`、`{佛罗伦萨/Firenze/Florence}`）。
 - **Math**: `$...$` / `$$...$$` を「数式区間」として扱い、区間内部の `[]` `{}` `/` が Gloss/Ruby と誤解釈されないようにする。
+
+> 注: KaTeX で `$...$` を自動レンダリングしたい場合、利用環境によっては auto-render の delimiters 設定で `$` を追加する必要がある。citeturn0search1turn0search4turn0search6
 
 ---
 
@@ -19,37 +21,47 @@
 - **Segment**: Input を分割した最小の意味単位（AST のノード）
 - **Ruby Block**: `[...]` の構文要素
 - **Gloss Block**: `{...}` の構文要素
-- **Math Segment**: `$...$` または `$$...$$` の区間
+- **Math Segment**: `$...$` または `$$...$$` による数式区間
 
 ---
 
 ## 3. AST（構文木）モデル
 
-### 3.1 Segment 型
+### 3.1 Segment 型（Top-level）
 
-本仕様のパーサーは、Input を次の Segment 列として返す。
+パーサーは Input を次の Segment 列として返す。
 
 - **Plain**
     - `text: String`
-- **Annotated**（Ruby）
+- **Ruby**
     - `base: InlineSegment[]`
     - `reading: String`
-- **Gloss**（互換仕様では “Term” と同等）
-    - `children: GlossChildSegment[]`
-    - `alts: String[]`（互換仕様 v0.1 では最大 1 要素。拡張仕様で複数可）
+- **Gloss**
+    - `lines: GlossLine[]`
 - **Math**
     - `tex: String`
     - `display: bool`（`$$...$$` = true, `$...$` = false）
 
-### 3.2 InlineSegment 型（Ruby base 内など）
+> 注: Gloss は `lines` により「上段＋下段（多段）」を統一表現する。`lines[0]` が上段本文、`lines[1..]` が下段の注記行である。
+
+### 3.2 InlineSegment 型（Ruby base 内）
 
 - **Plain**
+    - `text: String`
 - **Math**
+    - `tex: String`
+    - `display: bool`
 
-### 3.3 GlossChildSegment 型（Gloss の上段本文）
+### 3.3 GlossLine 型（Gloss の各行）
+
+Gloss の各行は「本文的に表示されるテキスト」なので、Ruby と Math を含められる。
+
+- `segments: GlossInlineSegment[]`
+
+### 3.4 GlossInlineSegment 型（Gloss 行内）
 
 - **Plain**
-- **Annotated**（Ruby）
+- **Ruby**
 - **Math**
 
 ---
@@ -62,157 +74,200 @@
 
 - `[` `]` `/` `{` `}`
 
-### 4.2 バックスラッシュによるエスケープ
+### 4.2 バックスラッシュによるエスケープ（規範）
 
 `\`（バックスラッシュ）に続く文字が「特別文字」または `\` のとき、直後 1 文字は **構文文字ではなく通常文字**として扱う。
 
 - 例: `\[` は「`[`」として扱う（Ruby の開始ではない）
 - 例: `\{` は「`{`」として扱う（Gloss の開始ではない）
-- 例: `\/` は「`/`」として扱う（区切りではない）
+- 例: `\/` は「`/`」として扱う（Gloss の区切りではない）
 
-> 注: 互換仕様（参照 JS 実装）では、構文エスケープ対象は上記 5 文字＋`\` であり、`$` は字句段階では特別扱いしない。
+### 4.3 `$` の扱い
+
+- Ruby/Gloss の字句解析における「特別文字」は §4.1 の 5 文字（＋`\`）である。
+- **Math スキャナ**は `$` と `$$` を特別扱いする（§7）。
+- `\$` は「リテラル `$`」として扱える（§7.3）。citeturn0search6turn0search2
 
 ---
 
 ## 5. Ruby Block（`[base/reading]`）
 
-### 5.1 構文
+### 5.1 構文（規範）
 
 ```ebnf
 RubyBlock := '[' RubyBase '/' RubyReading ']'
 ```
 
-- `base`（RubyBase）と `reading`（RubyReading）は空文字列でもよい（推奨しない）。
-- RubyBlock は、**必ず 1 つ以上の `/` を含む**必要がある。
+- RubyBlock は **必ず 1 つ以上の `/` を含む**必要がある。
     - `/` が存在しない（例: `[abc]`）場合、その `[` は Ruby 開始とみなさず **Plain** として処理する。
+- `base` と `reading` は空文字列でもよい（推奨しない）。
 
-### 5.2 RubyBase
+### 5.2 `/` の解釈（規範）
 
-- RubyBase は、**InlineSegment（Plain/Math）**として保持する。
-- RubyBase 内の `$...$` / `$$...$$` は **Inline Math** として解釈してよい（参照実装も対応）。
+- **最初の 1 回だけ** `/` を区切りとして扱い、以降の `/` は `reading` の一部として扱う。
+    - 例: `[a/b/c]` は `base="a"`, `reading="b/c"` と解釈する。
 
-### 5.3 RubyReading
+### 5.3 RubyBase（規範）
+
+- RubyBase は **InlineSegment（Plain/Math）**として保持する。
+- RubyBase 内の `$...$` / `$$...$$` は **Inline Math** として解釈してよい。
+- RubyBase 内では **GlossBlock は解釈しない**（`{...}` は通常文字として扱う）。
+
+### 5.4 RubyReading（規範）
 
 - RubyReading は **生文字列**（String）として保持する。
-- RubyReading 内では、Gloss/Ruby/Math の再帰解析を行わない（互換仕様）。
+- RubyReading 内では **Gloss/Ruby/Math の再帰解析を行わない**。
 
-### 5.4 禁止事項（互換仕様）
+### 5.5 禁止事項（規範）
 
 - RubyBlock の内側で、未エスケープの `[` が出現した場合、その RubyBlock は **不正**とみなし解析に失敗する。
-    - 解析失敗時は「Ruby として解釈せず Plain として扱う」（フォールバック）。
+    - 解析失敗時は Ruby として解釈せず、§9 のフォールバック規則に従う。
+
+> 目的: Ruby の入れ子を禁止し、曖昧性と実装複雑性を抑える。
 
 ---
 
-## 6. Gloss Block（`{main/alt...}`）
+## 6. Gloss Block（`{line1/line2/...}`）
 
-Gloss は、「上段本文（main）」と「下段の別表記（alt）」を 1 つ以上持つ構文。
+Gloss は、「上段本文（line1）」と「下段の別表記行（line2 以降）」を 0 行以上持つ構文。
 
-### 6.1 構文（拡張仕様）
+### 6.1 構文（規範）
 
 ```ebnf
-GlossBlock := '{' GlossMain ( '/' GlossAlt )* '}'
+GlossBlock := '{' GlossLine ( '/' GlossLine )* '}'
 ```
 
-- `GlossMain` は上段本文（表示の主文字列）。
-- `GlossAlt` は下段の別表記（英語・転写・別言語など）。
+- `GlossLine` は 1 行分の内容（GlossLine 型）であり、**Ruby と Math を含んでよい**。
+- `/` は **未エスケープ**かつ「Ruby/Math の外側」にあるときのみ、GlossLine の区切りとして働く。
 
-### 6.2 互換仕様 v0.1（参照 JS 実装と同じ挙動）
+### 6.2 行数（規範）
 
-- 最初の `/` までが `GlossMain`。
-- 最初の `/` 以降、閉じ `}` までが **1 本の文字列**として `alts[0]` に格納される。
-    - `{A/b/β}` は `main="A"`, `alts=["b/β"]` になる（複数行には分割しない）。
-- `GlossMain` は `RubyBlock` を 1 階層だけ含めることができる（`{Nara/[奈良/なら]}` のような利用を想定）。
-- `GlossMain` 内の `$...$` / `$$...$$` は Inline Math として解釈してよい。
-- `GlossAlt` 側は **再帰解析しない**（Plain 文字列）。
+- `{main}`（`/` を含まない）も GlossBlock として許可する。
+- `{a//b}` のように空行を含む場合、空行は `segments=[]`（空）として扱う（推奨しない）。
 
-### 6.3 拡張仕様（将来互換の推奨）
+### 6.3 例（規範的解釈）
 
-- `/` 区切りを **すべて分割**し、`alts = [alt1, alt2, ...]` として保持する。
-- レンダラーは alt を縦に積む（例: 日本語 → 英語 → ギリシャ文字）。
+- `{Nara/[奈良/なら]}`  
+  - `lines[0] = "Nara"`
+  - `lines[1] = Ruby("奈良","なら")`
+- `{[台湾/たいわん]/[台灣/Táiwān]}`
+  - `lines[0]` に Ruby を含みうる
+  - `lines[1]` に Ruby を含みうる
+- `{佛罗伦萨/Firenze/Florence}`
+  - `lines = ["佛罗伦萨", "Firenze", "Florence"]`
 
 ---
 
 ## 7. Math Segment（`$...$`, `$$...$$`）
 
-### 7.1 構文
+### 7.1 構文（規範）
 
 - Inline: `$ TEX $`（display = false）
 - Display: `$$ TEX $$`（display = true）
 
-### 7.2 解釈ルール（互換仕様）
+`TEX` は終端区切りが現れるまでの部分文字列とし、内部は **再帰解析しない**。
 
-- Math は「最外層」を先に分割するため、**Math 区間内部の `[]` `{}` `/` は Gloss/Ruby として解釈しない**。
-- ただし `[` `{` の **内側**（Ruby/Gloss 内）に書かれた `$...$` は、RubyBase や GlossMain の Inline Math として解釈してよい。
+### 7.2 優先順位（規範）
 
-### 7.3 エスケープ（推奨）
+- `$$...$$` は `$...$` より優先して認識する（`$$` のほうが長い区切りなので先に試す）。
+- Math 区間内部の `[]` `{}` `/` は Gloss/Ruby の構文として解釈しない。
 
-- `\$` は数式開始・終了の `$` として扱わず、通常文字 `$` として扱えることが望ましい。
-    - 参照 JS 実装の Inline Math 分割は `\` の個数（奇偶）でエスケープ判定を行う。
+### 7.3 エスケープ（規範）
+
+- 開始 `$`（または `$$`）の直前にある連続 `\` の個数が **奇数**のとき、当該 `$` はエスケープされた通常文字として扱う（数式開始ではない）。
+    - 例: `\$` はリテラル `$`（数式開始しない）citeturn0search6turn0search2
 
 ---
 
 ## 8. パース手順（規範）
 
-参照実装は概ね次の 2 段構えで処理する:
+パーサーは左から右へ走査して Segment を生成する。実装上、次の優先順位を推奨する。
 
-1. **Top-level Math 分割**  
-   入力を走査し、`[` `]` `{` `}` の深さを追跡しつつ、深さ 0 のときだけ `$...$` / `$$...$$` を Math として切り出す。
-2. **Plain 部分の Ruby/Gloss 分割**  
-   Plain 部分を字句解析（特別文字とエスケープを反映）し、左から順に
-   - `{` が来たら GlossBlock を試行
-   - `[` が来たら RubyBlock を試行
-   - 成功したら該当 Segment を 1 つ出力しカーソルを進める
-   - 失敗したら 1 文字分を Plain として出力（隣接 Plain は結合してよい）
+1. **Math の切り出し**（`$$...$$` → `$...$`）
+2. **GlossBlock**（`{...}`）
+3. **RubyBlock**（`[...]`）
+4. それ以外は Plain
+
+### 8.1 GlossLine の解析（規範）
+
+GlossBlock 内部は次の規則で GlossLine を構築する。
+
+- `[` を見たら RubyBlock を試行（成功すれば Ruby を追加）
+- `$` / `$$` を見たら MathSegment を試行（成功すれば Math を追加）
+- `/` を見たら「未エスケープ」であり Ruby/Math の外側なら次の GlossLine を開始
+- `}` で GlossBlock 終了
+
+### 8.2 RubyBase の解析（規範）
+
+RubyBase は **InlineSegment** 列として構築する。
+
+- `$` / `$$` を見たら MathSegment を試行（成功すれば Math を追加）
+- それ以外は Plain として蓄積する
 
 ---
 
 ## 9. エラー処理（フォールバック規則）
 
-パーサーは「失敗した構文を壊さない」方針で、次を推奨する:
+パーサーは「失敗した構文を壊さない」方針を採る。
 
 - RubyBlock:
     - `]` が見つからない、`/` がない、未エスケープ `[` が内部にある等の場合は Ruby として解釈しない。
 - GlossBlock:
     - `}` が見つからない場合は Gloss として解釈しない。
-- いずれも「開始記号 1 文字」を Plain として出力して解析を継続する。
+- Math:
+    - 対応する終端 `$`（または `$$`）が見つからない場合は Math として解釈しない。
+
+**フォールバック規則（規範）**  
+いずれの構文でも失敗した場合、「開始記号 1 文字」を Plain として出力し、解析を継続する（隣接 Plain は結合してよい）。
 
 ---
 
 ## 10. HTML レンダリング指針（非規範）
 
-Web レンダラーは、HTML の Ruby マークアップを使用することを推奨する。
+### 10.1 Ruby
 
-- Ruby: `<ruby><rb>base</rb><rt>reading</rt></ruby>`
-- Gloss: 上段本文を `<ruby>` で組み、下段を `<span class="term-alt">...</span>` のように別要素で表現する、など。
+HTML の Ruby マークアップの利用を推奨する。citeturn0search3turn0search7turn0search10
+
+- 省略形（簡潔）: `<ruby>base<rt>reading</rt></ruby>`
+- 明示形: `<ruby><rb>base</rb><rt>reading</rt></ruby>`
+
+### 10.2 Gloss
+
+Gloss は `lines[0]`（上段）を本文として出し、`lines[1..]` を下段として縦に積む。
+
+- wrapper: `<span class="gloss">...</span>`
+- 下段行: `<span class="gloss-alt">...</span>`
+
+> 注: 既存 CSS の都合で `term/term-alt` のクラス名を継続利用してもよい（仕様用語としては gloss を推奨）。
+
+### 10.3 Math（README の方針との整合）
+
+README の「`$` による TeX 数式記法を残す」を満たすため、HTML 生成は次のいずれかを採用してよい。
+
+- **方式A（推奨）**: 入力の delimiters を保持して `"$" + tex + "$"` / `"$$" + tex + "$$"` をそのまま出力する（KaTeX 等の後段処理に任せる）。
+- **方式B**: 後段レンダラを使わない場合に限り、`Math` を `<span class="math">...</span>` 等で包み、別途 KaTeX を呼んで置換する（この文書の範囲外）。
 
 ---
 
-## 11. 互換性メモ（参照実装との対応）
+## 11. テストケース（抜粋）
 
-参照 JS 実装（`ruby-parser.js`）の主要な一致点:
+### 11.1 Ruby
 
-- 構文文字のエスケープ（`[ ] / { }` と `\`）
-- RubyBlock の `[` 内ネスト禁止と `/` 必須
-- GlossBlock は `GlossMain` に Ruby を含められる
-- Math 分割で `[]` `{}` 深さを追跡し、数式内部で Gloss/Ruby を誤爆させない
-
-Readme に書かれている「複数言語（`{B/b/β}`）」は、v0.1 互換実装では `alts` を 1 本の文字列として保持するため、**正式対応は拡張仕様（将来版）**とする。
-
----
-
-## 12. テストケース（抜粋）
-
-### 12.1 Ruby
-
-- `[私/わたし]` → Annotated(base="私", reading="わたし")
+- `[私/わたし]` → Ruby(base="私", reading="わたし")
 - `[Text]` → Plain("[Text]")（`/` がないため）
+- `[a/b/c]` → Ruby(base="a", reading="b/c")（最初の `/` のみ区切り）
 
-### 12.2 Gloss
+### 11.2 Gloss（多段＋alt 内 Ruby）
 
-- `{[微分/びぶん][係数/けいすう]/derivative}`
-- `{Nara/[奈良/なら]}`（GlossMain に Ruby）
+- `{Nara/[奈良/なら]}`  
+  - `lines=["Nara", Ruby("奈良","なら")]`
+- `{[台湾/たいわん]/[台灣/Táiwān]}に行く`  
+  - `lines[0]` と `lines[1]` の両方に Ruby が出現しうる
+- `{佛罗伦萨/Firenze/Florence}`  
+  - `lines=["佛罗伦萨","Firenze","Florence"]`
 
-### 12.3 Math
+### 11.3 Math
 
 - `x=$\frac{1}{2}$` → Plain("x="), Math(tex="\frac{1}{2}", display=false)
 - `$$a_{[/]}$$` → Math 内の `[/]` は Ruby として解釈しない（保護される）
+- `\$40 and $e=mc^2$` → `\$` はリテラル `$`、後半は Math（実装が §7.3 に従う場合）citeturn0search6turn0search2
