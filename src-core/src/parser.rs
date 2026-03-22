@@ -101,7 +101,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, root: bool) 
             i += 1;
             while i < lines.len() && !lines[i].trim_start().starts_with("```") {
                 events.push(Event::Text(lines[i]));
-                events.push(Event::HardBreak);
+                events.push(Event::Text("\n"));
                 i += 1;
             }
             if i < lines.len() {
@@ -134,10 +134,10 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, root: bool) 
 
         // Thematic break
         if line.starts_with("---") && line.chars().all(|c| c == '-') {
+            events.push(Event::Rule);
             if root && line.len() == 3 {
                 pop_section(events, &mut section_stack);
             }
-            events.push(Event::Rule);
             i += 1;
             continue;
         }
@@ -382,12 +382,24 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>) {
             }
         }
         if text.starts_with('[') {
-            if let Some(close_bracket) = text.find(']') {
-                let content = &text[1..close_bracket];
-                if text.len() > close_bracket + 1 && text.as_bytes()[close_bracket + 1] == b'(' {
-                    if let Some(close_paren) = text[close_bracket + 2..].find(')') {
-                        let close_paren = close_bracket + 2 + close_paren;
-                        let href = &text[close_bracket + 2..close_paren];
+            let mut bracket = 0;
+            let mut close_bracket = None;
+            for (i, c) in text.char_indices() {
+                if c == '[' { bracket += 1; }
+                else if c == ']' {
+                    bracket -= 1;
+                    if bracket == 0 {
+                        close_bracket = Some(i);
+                        break;
+                    }
+                }
+            }
+            if let Some(cb) = close_bracket {
+                let content = &text[1..cb];
+                if text.len() > cb + 1 && text.as_bytes()[cb + 1] == b'(' {
+                    if let Some(close_paren) = text[cb + 2..].find(')') {
+                        let close_paren = cb + 2 + close_paren;
+                        let href = &text[cb + 2..close_paren];
                         events.push(Event::Start(Tag::Link(href)));
                         parse_inline(content, events);
                         events.push(Event::End(Tag::Link(href)));
@@ -395,30 +407,65 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>) {
                         continue;
                     }
                 }
-                if let Some(slash) = content.find('/') {
+                
+                // Ruby check. Split by '/' where bracket level is 0.
+                let mut slash_idx = None;
+                let mut b_level = 0;
+                for (i, c) in content.char_indices() {
+                    if c == '[' { b_level += 1; }
+                    else if c == ']' { b_level -= 1; }
+                    else if c == '/' && b_level == 0 {
+                        slash_idx = Some(i);
+                        break;
+                    }
+                }
+                if let Some(slash) = slash_idx {
                     let base = &content[..slash];
                     let ruby = &content[slash + 1..];
                     events.push(Event::Start(Tag::Ruby(ruby)));
                     parse_inline(base, events); 
                     events.push(Event::End(Tag::Ruby(ruby)));
-                    text = &text[close_bracket + 1..];
+                    text = &text[cb + 1..];
                     continue;
                 }
             }
         }
+        
         if text.starts_with('{') {
-            if let Some(end) = text[1..].find('}') {
-                // To accurately split gloss parts taking into account brackets as in original JS parser `splitGlossParts`
-                // Simplified for now: just split by '/' assuming no nested {}
-                let content = &text[1..1 + end];
-                let parts: Vec<&str> = content.split('/').collect();
+            let mut bracket = 0;
+            let mut close_brace = None;
+            for (i, c) in text.char_indices() {
+                if c == '{' { bracket += 1; }
+                else if c == '}' {
+                    bracket -= 1;
+                    if bracket == 0 {
+                        close_brace = Some(i);
+                        break;
+                    }
+                }
+            }
+            if let Some(end) = close_brace {
+                let content = &text[1..end];
+                let mut parts = Vec::new();
+                let mut last = 0;
+                let mut b_level = 0;
+                for (i, c) in content.char_indices() {
+                    if c == '[' { b_level += 1; }
+                    else if c == ']' { b_level -= 1; }
+                    else if c == '/' && b_level == 0 {
+                        parts.push(&content[last..i]);
+                        last = i + c.len_utf8();
+                    }
+                }
+                parts.push(&content[last..]);
+                
                 if parts.len() >= 2 {
                     let base = parts[0];
                     let glosses = parts[1..].to_vec();
                     events.push(Event::Start(Tag::Gloss(glosses.clone())));
                     parse_inline(base, events);
                     events.push(Event::End(Tag::Gloss(glosses)));
-                    text = &text[1 + end + 1..];
+                    text = &text[end + 1..];
                     continue;
                 }
             }

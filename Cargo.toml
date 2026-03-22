@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src-core",
-    "src-web"
+    "src-web",
+    "src-cli"
 ]
 resolver = "2"
