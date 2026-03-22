@@ -1,0 +1,32 @@
+warning: unused imports: `String` and `ToString`
+ --> src-core\src\parser.rs:1:21
+  |
+1 | ...::{String, ToString};
+  |       ^^^^^^  ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused variable: `rt`
+  --> src-core\src\html.rs:25:36
+   |
+25 | ...Ruby(rt)) => out....
+   |         ^^ help: if this is intentional, prefix it with an underscore: `_rt`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `parts`
+  --> src-core\src\html.rs:27:37
+   |
+27 | ...loss(parts)) => {
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_parts`
+
+warning: `src-core` (lib) generated 3 warnings (run `cargo fix --lib -p src-core` to apply 1 suggestion)
+    Checking src-web v0.1.0 (D:\project\gloss\src-web)
+error[E0433]: failed to resolve: could not find `console` in `web_sys`
+  --> src-web\src\lib.rs:12:14
+   |
+12 |     web_sys::console::log_1(&JsValue::from_str("Gloss Playground WASM Initializing..."));
+   |              ^^^^^^^ could not find `console` in `web_sys`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `src-web` (lib) due to 1 previous error

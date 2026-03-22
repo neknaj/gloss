@@ -1,0 +1,64 @@
+warning: unused imports: `String` and `ToString`
+ --> src-core\src\parser.rs:1:21
+  |
+1 | ...::{String, ToString};
+  |       ^^^^^^  ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: variable `tr_index` is assigned to, but never used
+ --> src-core\src\html.rs:7:13
+  |
+7 | ...mut tr_index = 0;...
+  |        ^^^^^^^^
+  |
+  = note: consider using `_tr_index` instead
+  = note: `#[warn(unused_variables)]` on by default
+
+warning: `src-core` (lib) generated 2 warnings (run `cargo fix --lib -p src-core` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running tests\integration.rs (D:\project\gloss\target\debug\deps\integration-c2d77de9fa99acaf.exe)
+
+running 8 tests
+test test_gloss ... ok
+test test_ruby ... ok
+test test_gloss_multi ... ok
+test test_inline_formats ... ok
+test test_blockquote ... FAILED
+test test_code_fence ... FAILED
+test test_table ... ok
+test test_section_nesting ... FAILED
+
+failures:
+
+---- test_blockquote stdout ----
+
+thread 'test_blockquote' panicked at src-core\tests\integration.rs:77:5:
+assertion `left == right` failed
+  left: "<blockquote class=\"nm-blockquote\">\n<p>quote<br/>\nline 2</p>\n</blockquote>"
+ right: "<blockquote class=\"nm-blockquote\">\n<p>quote\nline 2</p>\n</blockquote>"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- test_code_fence stdout ----
+
+thread 'test_code_fence' panicked at src-core\tests\integration.rs:59:5:
+assertion `left == right` failed
+  left: "<pre class=\"nm-code\"><code class=\" language-rust\">fn main() {}<br/>\n</code></pre>"
+ right: "<pre class=\"nm-code\"><code class=\" language-rust\">fn main() {}\n</code></pre>"
+
+---- test_section_nesting stdout ----
+
+thread 'test_section_nesting' panicked at src-core\tests\integration.rs:48:5:
+assertion `left == right` failed
+  left: "<section class=\"nm-sec level-1\">\n<h1>H1</h1>\n<section class=\"nm-sec level-2\">\n<h2>H2</h2>\n<p>text</p>\n</section>\n<hr/>\n</section>"
+ right: "<section class=\"nm-sec level-1\">\n<h1>H1</h1>\n<section class=\"nm-sec level-2\">\n<h2>H2</h2>\n<p>text</p>\n<hr/>\n</section>\n</section>"
+
+
+failures:
+    test_blockquote
+    test_code_fence
+    test_section_nesting
+
+test result: FAILED. 5 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test integration`
