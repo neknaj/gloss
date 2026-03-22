@@ -1,0 +1,70 @@
+    Checking unicode-ident v1.0.24
+    Checking once_cell v1.21.4
+    Checking cfg-if v1.0.4
+    Checking latex2mathml v0.2.3
+    Checking wasm-bindgen-shared v0.2.114
+    Checking wasm-bindgen v0.2.114
+    Checking src-core v0.1.0 (D:\project\gloss\src-core)
+warning: unused imports: `String` and `ToString`
+ --> src-core\src\parser.rs:1:21
+  |
+1 | use alloc::string::{String, ToString};
+  |                     ^^^^^^  ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused variable: `rt`
+  --> src-core\src\html.rs:17:36
+   |
+17 |             Event::Start(Tag::Ruby(rt)) => out.push_str("<ruby>"),
+   |                                    ^^ help: if this is intentional, prefix it with an underscore: `_rt`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `parts`
+  --> src-core\src\html.rs:19:37
+   |
+19 |             Event::Start(Tag::Gloss(parts)) => {
+   |                                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_parts`
+
+warning: `src-core` (lib) generated 3 warnings (run `cargo fix --lib -p src-core` to apply 1 suggestion)
+    Checking js-sys v0.3.91
+    Checking console_error_panic_hook v0.1.7
+    Checking web-sys v0.3.91
+    Checking src-web v0.1.0 (D:\project\gloss\src-web)
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `alloc`
+  --> src-web\src\lib.rs:20:31
+   |
+20 |         let mut html_output = alloc::string::String::new();
+   |                               ^^^^^ use of unresolved module or unlinked crate `alloc`
+   |
+   = help: add `extern crate alloc` to use the `alloc` crate
+help: consider importing this struct
+   |
+ 1 + use std::string::String;
+   |
+help: if you import `String`, refer to it directly
+   |
+20 -         let mut html_output = alloc::string::String::new();
+20 +         let mut html_output = String::new();
+   |
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `alloc`
+  --> src-web\src\lib.rs:33:25
+   |
+33 |     let mut init_html = alloc::string::String::new();
+   |                         ^^^^^ use of unresolved module or unlinked crate `alloc`
+   |
+   = help: add `extern crate alloc` to use the `alloc` crate
+help: consider importing this struct
+   |
+ 1 + use std::string::String;
+   |
+help: if you import `String`, refer to it directly
+   |
+33 -     let mut init_html = alloc::string::String::new();
+33 +     let mut init_html = String::new();
+   |
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `src-web` (lib) due to 2 previous errors

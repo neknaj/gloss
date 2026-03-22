@@ -9,6 +9,8 @@ pub fn main() -> Result<(), JsValue> {
     let window = web_sys::window().expect("no global `window` exists");
     let document = window.document().expect("should have a document on window");
     
+    web_sys::console::log_1(&JsValue::from_str("Gloss Playground WASM Initializing..."));
+    
     let editor = document.get_element_by_id("editor").expect("no editor found").dyn_into::<HtmlTextAreaElement>()?;
     let preview = document.get_element_by_id("preview").expect("no preview found").dyn_into::<HtmlElement>()?;
     
