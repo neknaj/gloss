@@ -1,0 +1,7 @@
+[package]
+name = "src-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+latex2mathml = "0.2.3"

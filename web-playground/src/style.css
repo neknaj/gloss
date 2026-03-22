@@ -1,0 +1,32 @@
+body {
+    margin: 0;
+    font-family: sans-serif;
+    display: flex;
+    height: 100vh;
+}
+.container {
+    display: flex;
+    width: 100%;
+}
+#editor, #preview {
+    flex: 1;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+#editor {
+    border: none;
+    border-right: 1px solid #ccc;
+    resize: none;
+    font-family: monospace;
+    font-size: 16px;
+}
+#preview {
+    background: #f9f9f9;
+}
+ruby {
+    ruby-align: center;
+}
+rt {
+    font-size: 0.6em;
+}

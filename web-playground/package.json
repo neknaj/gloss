@@ -1,0 +1,10 @@
+{
+  "name": "web-playground",
+  "version": "1.0.0",
+  "scripts": {
+    "build:ts": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

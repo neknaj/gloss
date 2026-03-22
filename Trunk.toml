@@ -1,0 +1,7 @@
+[build]
+target = "web-playground/index.html"
+public_url = "/"
+
+[watch]
+ignore = ["web-playground/dist_ts", "web-playground/node_modules"]
+

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Gloss Playground</title>
+    <link rel="css" href="src/style.css" data-trunk>
+    <link data-trunk rel="rust" href="../src-web/Cargo.toml" data-wasm-opt="0" />
+</head>
+<body>
+    <div class="container">
+        <textarea id="editor" placeholder="Write gloss markdown here..."></textarea>
+        <div id="preview"></div>
+    </div>
+    <script type="module" src="dist_ts/main.js" data-trunk></script>
+</body>
+</html>

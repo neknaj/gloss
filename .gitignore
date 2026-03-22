@@ -1,0 +1,15 @@
+/target/
+**/*.rs.bk
+*.pdb
+*.exe
+*.dll
+*.so
+*.dylib
+
+# web-playground
+node_modules/
+dist_ts/
+dist/
+
+# Mac
+.DS_Store
