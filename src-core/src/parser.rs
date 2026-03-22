@@ -87,8 +87,8 @@ impl<'a> Parser<'a> {
                     close_paragraph(&mut events, &mut in_paragraph);
                     if line.len() == 3 {
                         // thematic break + 1 section close
-                        events.push(Event::Rule);
                         pop_section(&mut events, &mut section_stack);
+                        events.push(Event::Rule);
                     } else {
                         // Just regular rule if more than 3
                         events.push(Event::Rule);

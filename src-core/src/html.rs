@@ -12,8 +12,8 @@ where
             Event::End(Tag::Paragraph) => out.push_str("</p>\n"),
             Event::Start(Tag::Heading(level)) => out.push_str(&format!("<h{}>", level)),
             Event::End(Tag::Heading(level)) => out.push_str(&format!("</h{}>\n", level)),
-            Event::Start(Tag::Section(level)) => out.push_str(&format!("<div class=\"md-section section level-{} indent\">\n", level)),
-            Event::End(Tag::Section(_)) => out.push_str("</div>\n"),
+            Event::Start(Tag::Section(level)) => out.push_str(&format!("<section class=\"level-{}\">\n", level)),
+            Event::End(Tag::Section(_)) => out.push_str("</section>\n"),
             Event::Start(Tag::Ruby(rt)) => out.push_str("<ruby>"),
             Event::End(Tag::Ruby(rt)) => out.push_str(&format!("<rt>{}</rt></ruby>", rt)),
             Event::Start(Tag::Gloss(parts)) => {
