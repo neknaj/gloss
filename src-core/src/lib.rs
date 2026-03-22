@@ -16,14 +16,19 @@ mod tests {
 
     #[test]
     fn test_parser() {
-        let markdown = "- User list\n- Second list\n\n1. Number list\n\nCode `hello`\nBreak\\nLine\nEscaped \\{ test \\} \\\\";
+        let markdown = "> block\n\n| H1 | H2 |\n|:---|---:|\n| **bold** | *italic* ~~strike~~ |\n\n[link](url) ![img](url)";
         let parser = Parser::new(&markdown);
         let mut html_output = String::new();
         push_html(&mut html_output, parser);
-        assert!(html_output.contains("<ul>"), "Missing ul");
-        assert!(html_output.contains("<ol>"), "Missing ol");
-        assert!(html_output.contains("<code>"), "Missing code");
-        assert!(html_output.contains("<br>\n"), "Missing br");
-        assert!(html_output.contains("{ test }"), "Missing escape");
+        
+        assert!(html_output.contains("<blockquote class=\"nm-blockquote\">"), "Missing blockquote");
+        assert!(html_output.contains("<table class=\"nm-table\">"), "Missing table");
+        assert!(html_output.contains("style=\"text-align:left\""), "Missing td align left");
+        assert!(html_output.contains("style=\"text-align:right\""), "Missing td align right");
+        assert!(html_output.contains("<strong>bold</strong>"), "Missing strong");
+        assert!(html_output.contains("<em>italic</em>"), "Missing em");
+        assert!(html_output.contains("<del>strike</del>"), "Missing strike");
+        assert!(html_output.contains("<a href=\"url\">link</a>"), "Missing link");
+        assert!(html_output.contains("<img src=\"url\" alt=\"img\" class=\"nm-image\"/>"), "Missing image");
     }
 }
