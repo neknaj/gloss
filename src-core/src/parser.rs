@@ -135,12 +135,12 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, root: bool) 
             }
         }
 
-        // Thematic break (--- closes ONE section)
+        // Thematic break: first close ONE section (so hr lands in parent), then emit <hr/>
         if line.starts_with("---") && line.chars().all(|c| c == '-') {
-            events.push(Event::Rule);
             if root && line.len() == 3 {
                 pop_section(events, &mut section_stack);
             }
+            events.push(Event::Rule);
             i += 1;
             continue;
         }

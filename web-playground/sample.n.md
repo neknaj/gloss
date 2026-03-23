@@ -1,4 +1,4 @@
-# [Gloss/グロス] Web Playground — サンプル
+# Gloss Web Playground — サンプル
 
 このエディタでは **Gloss 拡張 Markdown** をリアルタイムでレンダリングできます。
 
@@ -86,11 +86,73 @@ fn main() {
 
 ## 数式
 
+### 基本的な数式
+
 インライン数式：$E = mc^2$ — アインシュタインの[質量/しつりょう][エネルギー/えねるぎー][等価/とうか][式/しき]。
 
-ディスプレイ数式：
+ピタゴラスの[定理/ていり]：$a^2 + b^2 = c^2$
+
+二次[方程式/ほうていしき]の[解/かい]：$x = \dfrac{-b \pm \sqrt{b^2 - 4ac}}{2a}$
+
+### 解析学・微積分
+
+{[定積分/ていせきぶん]/definite integral}：
 
 $$\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}$$
+
+{[微分/びぶん]/derivative} の[定義/ていぎ]：
+
+$$f'(x) = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h}$$
+
+{[テイラー展開/てぃらーてんかい]/Taylor expansion}：
+
+$$e^x = \sum_{n=0}^{\infty} \frac{x^n}{n!} = 1 + x + \frac{x^2}{2!} + \frac{x^3}{3!} + \cdots$$
+
+### 線形代数
+
+{[行列/ぎょうれつ]/matrix} の[積/せき]：
+
+$$\begin{pmatrix} a & b \\ c & d \end{pmatrix} \begin{pmatrix} x \\ y \end{pmatrix} = \begin{pmatrix} ax+by \\ cx+dy \end{pmatrix}$$
+
+{[固有値/こゆうち]/eigenvalue} [方程式/ほうていしき]：$Av = \lambda v$
+
+{[行列式/ぎょうれつしき]/determinant}：$\det(A) = ad - bc$
+
+### 確率・統計
+
+{[正規分布/せいきぶんぷ]/normal distribution} の{[確率密度関数/かくりつみつどかんすう]/probability density function}：
+
+$$f(x) = \frac{1}{\sigma\sqrt{2\pi}} \exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)$$
+
+{[ベイズの定理/べいずのていり]/Bayes' theorem}：
+
+$$P(A|B) = \frac{P(B|A)\,P(A)}{P(B)}$$
+
+### 化学式
+
+{[水/みず]/water}：$\text{H}_2\text{O}$
+
+{[二酸化炭素/にさんかたんそ]/carbon dioxide}：$\text{CO}_2$
+
+{[硫酸/りゅうさん]/sulfuric acid}：$\text{H}_2\text{SO}_4$
+
+[酸化還元反応/さんかかんげんはんのう]：
+
+$$\text{Zn} + \text{H}_2\text{SO}_4 \to \text{ZnSO}_4 + \text{H}_2\uparrow$$
+
+[ゼーベックの法則/ぜーべっくのほうそく]（熱化学）：
+
+$$\Delta G = \Delta H - T\Delta S$$
+
+### 電磁気学・物理
+
+{[マクスウェル方程式/まくすうぇるほうていしき]/Maxwell equations}（積分形）：
+
+$$\oint_{\partial \Omega} E \cdot dA = \frac{Q_{\text{enc}}}{\varepsilon_0}$$
+
+{[シュレーディンガー方程式/しゅれーでぃんがーほうていしき]/Schrödinger equation}：
+
+$$i\hbar\frac{\partial}{\partial t}\Psi = \hat{H}\Psi$$
 
 ---
 
