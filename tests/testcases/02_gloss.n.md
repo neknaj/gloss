@@ -1,1 +1,1 @@
-{word/gloss}です
+{[語/ご]/word}です
