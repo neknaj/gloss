@@ -9,86 +9,196 @@
     <link data-trunk rel="copy-file" href="sample.n.md" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <!-- Google Fonts: Japanese serif/gothic/casual -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Klee+One&family=Shippori+Mincho&family=Zen+Kaku+Gothic+Antique&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-header: #121a2a;
+            --border: #23304a;
+            --text-header: #e6edf3;
+            --bg-editor: #121a2a;
+            --col-editor: #e6edf3;
+            --bg-preview: #0b0f19;
+            --col-preview: #cdd6f4;
+            --col-accent: #7aa2f7;
+        }
+        [data-theme="light"] {
+            --bg-header: #f0f2f7;
+            --border: #c8ccd8;
+            --text-header: #1a1e2e;
+            --bg-editor: #f8f9fc;
+            --col-editor: #1a1e2e;
+            --bg-preview: #ffffff;
+            --col-preview: #1a1e2e;
+            --col-accent: #3456c8;
+        }
+
+        body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: system-ui, sans-serif; background: var(--bg-header); }
+
         .header-controls {
             display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
             justify-content: space-between;
             align-items: center;
-            background: #121a2a;
+            background: var(--bg-header);
             padding: 8px 16px;
-            border-bottom: 1px solid #23304a;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s, border-color 0.2s;
         }
-        .header-controls label {
-            color: #e6edf3;
-            font-size: 14px;
-            cursor: pointer;
+        .header-title { color: var(--col-accent); font-weight: bold; font-size: 15px; white-space: nowrap; }
+        .ctrl-group { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+        .ctrl-group label {
+            color: var(--text-header);
+            font-size: 13px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
+            cursor: pointer;
+            white-space: nowrap;
         }
-        /* Make the container take remaining height */
-        body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .ctrl-group select, .ctrl-group input[type=range] {
+            accent-color: var(--col-accent);
+            background: var(--bg-editor);
+            color: var(--col-editor);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .ctrl-group input[type=range] { width: 80px; padding: 0; border: none; }
+        #font-size-display { color: var(--text-header); font-size: 12px; min-width: 34px; }
+
+        /* Theme toggle button */
+        #theme-btn {
+            cursor: pointer;
+            background: var(--col-accent);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 3px 10px;
+            font-size: 13px;
+            line-height: 1.6;
+            transition: background 0.2s;
+        }
+        #theme-btn:hover { opacity: 0.85; }
+
         .container { flex: 1; display: flex; overflow: hidden; }
         #editor, #preview { flex: 1; overflow: auto; padding: 16px; margin: 0; border: none; }
-        #preview { background: #0b0f19; }
-        #editor { background: #121a2a; color: #e6edf3; border-right: 1px solid #23304a; resize: none; font-family: monospace; font-size: 14px; }
+        #editor {
+            background: var(--bg-editor);
+            color: var(--col-editor);
+            border-right: 1px solid var(--border);
+            resize: none;
+            font-family: monospace;
+            font-size: 14px;
+            transition: background 0.2s, color 0.2s;
+        }
+        #preview {
+            background: var(--bg-preview);
+            color: var(--col-preview);
+            transition: background 0.2s, color 0.2s, font-size 0.15s, font-family 0.15s;
+        }
+
+        /* Ruby styling in preview */
+        #preview ruby { ruby-align: center; }
+        #preview rt { font-size: 0.5em; }
     </style>
 </head>
 <body>
     <div class="header-controls">
-        <strong style="color: #7aa2f7;">Gloss Playground</strong>
-        <label>
-            <input type="checkbox" id="use-katex" checked> Enable KaTeX
-        </label>
+        <span class="header-title">Gloss Playground</span>
+        <div class="ctrl-group">
+            <label>
+                <input type="checkbox" id="use-katex" checked> KaTeX
+            </label>
+            <label>
+                フォント
+                <select id="font-select">
+                    <option value="">システム</option>
+                    <option value="'Klee One', cursive">Klee One</option>
+                    <option value="'Zen Kaku Gothic Antique', sans-serif">Zen Kaku Gothic</option>
+                    <option value="'Shippori Mincho', serif">Shippori Mincho</option>
+                </select>
+            </label>
+            <label>
+                サイズ
+                <input type="range" id="font-size" min="10" max="28" value="16" step="1">
+                <span id="font-size-display">16px</span>
+            </label>
+            <button id="theme-btn" title="テーマ切替">🌙 ダーク</button>
+        </div>
     </div>
     <div class="container">
         <textarea id="editor" placeholder="Write gloss markdown here..."></textarea>
         <div id="preview"></div>
     </div>
     <script>
-        // After WASM initialises, it fires 'wasm-ready'.
-        // We then fetch the sample, populate the editor and trigger an initial render.
+        const preview = document.getElementById('preview');
+        const editor  = document.getElementById('editor');
+        const fontSelect  = document.getElementById('font-select');
+        const fontSizeEl  = document.getElementById('font-size');
+        const fontSizeDisp = document.getElementById('font-size-display');
+        const themeBtn    = document.getElementById('theme-btn');
+        const html        = document.documentElement;
+
+        // ── Theme toggle ──────────────────────────────────────────
+        let isDark = true;
+        themeBtn.addEventListener('click', () => {
+            isDark = !isDark;
+            html.setAttribute('data-theme', isDark ? 'dark' : 'light');
+            themeBtn.textContent = isDark ? '🌙 ダーク' : '☀️ ライト';
+        });
+
+        // ── Font family ───────────────────────────────────────────
+        fontSelect.addEventListener('change', () => {
+            preview.style.fontFamily = fontSelect.value;
+        });
+
+        // ── Font size ─────────────────────────────────────────────
+        fontSizeEl.addEventListener('input', () => {
+            const sz = fontSizeEl.value + 'px';
+            preview.style.fontSize = sz;
+            fontSizeDisp.textContent = sz;
+        });
+
+        // ── KaTeX rendering helper ─────────────────────────────────
+        function renderKaTeX() {
+            if (!document.getElementById('use-katex').checked || !window.katex) return;
+            preview.querySelectorAll('.math-inline, .math-display').forEach(el => {
+                const texSpan = el.querySelector('.math-tex');
+                if (texSpan) {
+                    try {
+                        katex.render(texSpan.textContent, el, {
+                            displayMode: el.classList.contains('math-display'),
+                            throwOnError: false
+                        });
+                    } catch(e) { console.error('[JS] KaTeX error:', e); }
+                }
+            });
+        }
+
+        // ── Editor input → re-render ───────────────────────────────
+        editor.addEventListener('input', () => {
+            setTimeout(renderKaTeX, 20);
+        });
+
+        document.getElementById('use-katex').addEventListener('change', () => {
+            editor.dispatchEvent(new Event('input'));
+        });
+
+        // ── Load sample on WASM ready ──────────────────────────────
         window.addEventListener('wasm-ready', () => {
-            console.log('[JS] wasm-ready fired');
             fetch('sample.n.md')
                 .then(r => r.text())
                 .then(text => {
-                    const editor = document.getElementById('editor');
                     editor.value = text;
                     editor.dispatchEvent(new Event('input'));
                 })
                 .catch(err => console.warn('Could not load sample.n.md:', err));
-        });
-
-        // When the user typers or toggle changes, the WASM input listener fires
-        // synchronously and sets preview.innerHTML. Then we hook onto input and typeset.
-        const preview = document.getElementById('preview');
-        const editor = document.getElementById('editor');
-        editor.addEventListener('input', () => {
-            // Defer KaTeX rendering to ensure WASM has updated the DOM first
-            setTimeout(() => {
-                const useKaTeX = document.getElementById('use-katex').checked;
-                if (useKaTeX && window.katex) {
-                    preview.querySelectorAll('.math-inline, .math-display').forEach(el => {
-                        const texSpan = el.querySelector('.math-tex');
-                        if (texSpan) {
-                            try {
-                                katex.render(texSpan.textContent, el, {
-                                    displayMode: el.classList.contains('math-display'),
-                                    throwOnError: false
-                                });
-                            } catch(e) {
-                                console.error('[JS] KaTeX render error:', e);
-                            }
-                        }
-                    });
-                }
-            }, 20);
-        });
-
-        // Handle toggle changes
-        document.getElementById('use-katex').addEventListener('change', () => {
-            editor.dispatchEvent(new Event('input')); // Force re-render from WASM to reset or apply KaTeX
         });
     </script>
 </body>
