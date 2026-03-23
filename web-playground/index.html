@@ -106,6 +106,35 @@
         /* Ruby styling in preview */
         #preview ruby { ruby-align: center; }
         #preview rt { font-size: 0.5em; }
+
+        /* User refined styles */
+        /* 1. Inline math = body text color */
+        #preview .math-inline {
+            color: inherit;
+        }
+        /* 2. Ruby & Gloss: only annotations (rt) are thinner/lighter */
+        #preview .nm-ruby rb, #preview .nm-gloss rb {
+            opacity: 1;
+            font-weight: inherit;
+        }
+        #preview .nm-ruby rt, #preview .nm-gloss rt {
+            opacity: 0.8;
+            font-weight: 300;
+        }
+        /* 3. Code blocks = Fixed black bg, white text for both themes */
+        #preview .nm-code, #preview .nm-code-inline {
+            background-color: #1a1a1a !important;
+            color: #f8f8f2 !important;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+        #preview pre.nm-code {
+            padding: 12px;
+            margin: 1em 0;
+            overflow-x: auto;
+            border: 1px solid #333;
+        }
     </style>
 </head>
 <body>
