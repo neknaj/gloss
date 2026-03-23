@@ -23,7 +23,9 @@ pub enum Tag<'a> {
     List(bool),
     Item,
     Code,
-    CodeBlock(&'a str),
+    CodeBlock(&'a str, &'a str),   // (lang, filename)
+    FootnoteSection,
+    FootnoteItem(u32),             // footnote number
     Blockquote,
     Table(Vec<Alignment>),
     TableHead,
@@ -46,6 +48,8 @@ pub enum Event<'a> {
     SoftBreak,
     HardBreak,
     Rule,
+    CardLink(&'a str),    // URL
+    FootnoteRef(u32),     // inline superscript: footnote number
 }
 
 pub struct Parser<'a> {
@@ -53,12 +57,66 @@ pub struct Parser<'a> {
     pub warnings: Vec<String>,
 }
 
+/// Pre-scan all lines for footnote definitions of the form `[^id]: content`.
+/// Returns (id, content) pairs in document order; duplicate ids are ignored.
+fn collect_fn_defs<'a>(lines: &[&'a str]) -> Vec<(&'a str, &'a str)> {
+    let mut defs: Vec<(&'a str, &'a str)> = Vec::new();
+    for &line in lines {
+        let t = line.trim_start();
+        if let Some(rest) = t.strip_prefix("[^") {
+            if let Some(colon_idx) = rest.find("]: ") {
+                let id = &rest[..colon_idx];
+                if !id.is_empty() && !id.contains(' ') && !defs.iter().any(|(did, _)| *did == id) {
+                    let content = &rest[colon_idx + 3..];
+                    defs.push((id, content));
+                }
+            }
+        }
+    }
+    defs
+}
+
+/// Emit the footnotes section after all blocks have been parsed.
+fn emit_fn_section<'a>(
+    fn_defs: &[(&'a str, &'a str)],
+    fn_refs: &[&'a str],
+    events: &mut Vec<Event<'a>>,
+    warnings: &mut Vec<String>,
+) {
+    // Warn about definitions that were never referenced
+    for (id, _) in fn_defs {
+        if !fn_refs.contains(id) {
+            warnings.push(format!(
+                "Footnote '[^{}]' is defined but never referenced.",
+                id
+            ));
+        }
+    }
+    if fn_refs.is_empty() {
+        return;
+    }
+    events.push(Event::Start(Tag::FootnoteSection));
+    for (idx, &id) in fn_refs.iter().enumerate() {
+        let num = (idx + 1) as u32;
+        if let Some(&(_, content)) = fn_defs.iter().find(|(did, _)| *did == id) {
+            events.push(Event::Start(Tag::FootnoteItem(num)));
+            let mut nested_refs: Vec<&'a str> = Vec::new();
+            parse_inline(content, events, warnings, false, fn_defs, &mut nested_refs);
+            events.push(Event::End(Tag::FootnoteItem(num)));
+        }
+    }
+    events.push(Event::End(Tag::FootnoteSection));
+}
+
 impl<'a> Parser<'a> {
     pub fn new(text: &'a str) -> Self {
         let lines: Vec<&str> = text.lines().collect();
         let mut events = Vec::new();
         let mut warnings = Vec::new();
-        parse_blocks(&lines, &mut events, &mut warnings, true);
+        let fn_defs = collect_fn_defs(&lines);
+        let mut fn_refs: Vec<&str> = Vec::new();
+        parse_blocks(&lines, &mut events, &mut warnings, true, &fn_defs, &mut fn_refs);
+        emit_fn_section(&fn_defs, &fn_refs, &mut events, &mut warnings);
         Parser { events: events.into_iter(), warnings }
     }
 }
@@ -90,15 +148,13 @@ fn is_purely_kana_or_punct(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| {
         matches!(c,
             '\u{3040}'..='\u{309F}' | // Hiragana
-            '\u{30A0}'..='\u{30FF}' | // Katakana
+            '\u{30A0}'..='\u{30FF}' | // Katakana (includes ー U+30FC and ・ U+30FB)
             '\u{31F0}'..='\u{31FF}' | // Katakana phonetic extensions
             '\u{FF65}'..='\u{FF9F}' | // Half-width Katakana
             '\u{3000}'..='\u{303F}' | // CJK Symbols and Punctuation
             '\u{FE30}'..='\u{FE4F}' | // CJK Compatibility Forms
             '\u{FF00}'..='\u{FF60}' | // Fullwidth Latin / punctuation
             '\u{FFE0}'..='\u{FFE6}' | // Fullwidth currency/signs
-            '\u{30FC}' |              // Katakana-Hiragana prolonged sound mark ー
-            '\u{30FB}' |              // ・
             // Bopomofo (注音符号 / Zhuyin)
             '\u{02CA}' | '\u{02C7}' | '\u{02CB}' | '\u{02D9}' |
             '\u{31A0}'..='\u{31BF}' | '\u{3100}'..='\u{312F}' |
@@ -121,7 +177,7 @@ impl<'a> Iterator for Parser<'a> {
     }
 }
 
-fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &mut Vec<String>, root: bool) {
+fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &mut Vec<String>, root: bool, fn_defs: &[(&'a str, &'a str)], fn_refs: &mut Vec<&'a str>) {
     let mut i = 0;
     let mut section_stack: Vec<u32> = Vec::new();
 
@@ -151,10 +207,53 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
             continue;
         }
 
+        // Footnote definition line: [^id]: content — skip (rendered in footnote section)
+        if tline.starts_with("[^") && tline.contains("]: ") {
+            i += 1;
+            continue;
+        }
+
+        // Card link block: @[card](URL)
+        if tline.starts_with("@[") {
+            if let Some(bracket_end) = tline[2..].find(']') {
+                let type_name = &tline[2..2 + bracket_end];
+                let after_bracket = &tline[2 + bracket_end + 1..];
+                if type_name == "card" {
+                    if after_bracket.starts_with('(') && after_bracket.ends_with(')') {
+                        let url = &after_bracket[1..after_bracket.len() - 1];
+                        if !url.starts_with("http://") && !url.starts_with("https://") {
+                            warnings.push(format!(
+                                "Card link URL '{}' should start with http:// or https://",
+                                url
+                            ));
+                        }
+                        events.push(Event::CardLink(url));
+                    } else {
+                        warnings.push(format!(
+                            "Malformed @[card] syntax near '{}': expected @[card](URL).",
+                            &tline[..tline.len().min(40)]
+                        ));
+                    }
+                } else {
+                    warnings.push(format!(
+                        "Unknown embed type '{}' in '@[{}]': only 'card' is supported.",
+                        type_name, type_name
+                    ));
+                }
+            }
+            i += 1;
+            continue;
+        }
+
         // Code block
         if tline.starts_with("```") {
-            let lang = tline[3..].trim();
-            events.push(Event::Start(Tag::CodeBlock(lang)));
+            let info = tline[3..].trim();
+            let (lang, filename) = if let Some(colon) = info.find(':') {
+                (&info[..colon], &info[colon + 1..])
+            } else {
+                (info, "")
+            };
+            events.push(Event::Start(Tag::CodeBlock(lang, filename)));
             i += 1;
             while i < lines.len() && !lines[i].trim_start().starts_with("```") {
                 events.push(Event::Text(lines[i]));
@@ -164,7 +263,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
             if i < lines.len() {
                 i += 1;
             }
-            events.push(Event::End(Tag::CodeBlock(lang)));
+            events.push(Event::End(Tag::CodeBlock(lang, filename)));
             continue;
         }
 
@@ -182,7 +281,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                     section_stack.push(level as u32);
                 }
                 events.push(Event::Start(Tag::Heading(level as u32)));
-                parse_inline(tline[level..].trim(), events, warnings, false);
+                parse_inline(tline[level..].trim(), events, warnings, false, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Heading(level as u32)));
                 i += 1;
                 continue;
@@ -230,7 +329,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                 }
             }
             events.push(Event::Start(Tag::Blockquote));
-            parse_blocks(&bq_lines, events, warnings, false);
+            parse_blocks(&bq_lines, events, warnings, false, fn_defs, fn_refs);
             events.push(Event::End(Tag::Blockquote));
             i = j;
             continue;
@@ -265,7 +364,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                 for (ci, cell) in head.iter().enumerate() {
                     let a = aligns.get(ci).cloned().unwrap_or(Alignment::None);
                     events.push(Event::Start(Tag::TableCell(a.clone())));
-                    parse_inline(cell, events, warnings, false);
+                    parse_inline(cell, events, warnings, false, fn_defs, fn_refs);
                     events.push(Event::End(Tag::TableCell(a)));
                 }
                 events.push(Event::End(Tag::TableRow));
@@ -278,7 +377,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                     for (ci, cell) in row.iter().enumerate() {
                         let a = aligns.get(ci).cloned().unwrap_or(Alignment::None);
                         events.push(Event::Start(Tag::TableCell(a.clone())));
-                        parse_inline(cell, events, warnings, false);
+                        parse_inline(cell, events, warnings, false, fn_defs, fn_refs);
                         events.push(Event::End(Tag::TableCell(a)));
                     }
                     events.push(Event::End(Tag::TableRow));
@@ -307,7 +406,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                 if (is_ol && is_ol2) || (!is_ol && is_ul2) {
                     let content = if is_ul2 { &l2[2..] } else { &l2[d2 + 2..] };
                     events.push(Event::Start(Tag::Item));
-                    parse_inline(content, events, warnings, false);
+                    parse_inline(content, events, warnings, false, fn_defs, fn_refs);
                     events.push(Event::End(Tag::Item));
                     j += 1;
                 } else {
@@ -336,6 +435,8 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                 || t.starts_with("* ")
                 || (t.chars().take_while(|c| c.is_ascii_digit()).count() > 0
                     && t[t.chars().take_while(|c| c.is_ascii_digit()).count()..].starts_with(". "))
+                || t.starts_with("@[")
+                || (t.starts_with("[^") && t.contains("]: "))
             {
                 break;
             }
@@ -346,7 +447,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
         if !para.is_empty() {
             events.push(Event::Start(Tag::Paragraph));
             for (pidx, pline) in para.iter().enumerate() {
-                parse_inline(pline, events, warnings, false);
+                parse_inline(pline, events, warnings, false, fn_defs, fn_refs);
                 if pidx < para.len() - 1 {
                     events.push(Event::HardBreak);
                 }
@@ -363,7 +464,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
     }
 }
 
-fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &mut Vec<String>, in_ruby: bool) {
+fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &mut Vec<String>, in_ruby: bool, fn_defs: &[(&'a str, &'a str)], fn_refs: &mut Vec<&'a str>) {
     while !text.is_empty() {
         // $$ math display
         if text.starts_with("$$") {
@@ -399,7 +500,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
         if text.starts_with("~~") {
             if let Some(end) = text[2..].find("~~") {
                 events.push(Event::Start(Tag::Strikethrough));
-                parse_inline(&text[2..2 + end], events, warnings, in_ruby);
+                parse_inline(&text[2..2 + end], events, warnings, in_ruby, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Strikethrough));
                 text = &text[2 + end + 2..];
                 continue;
@@ -409,7 +510,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
         if text.starts_with("**") {
             if let Some(end) = text[2..].find("**") {
                 events.push(Event::Start(Tag::Strong));
-                parse_inline(&text[2..2 + end], events, warnings, in_ruby);
+                parse_inline(&text[2..2 + end], events, warnings, in_ruby, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Strong));
                 text = &text[2 + end + 2..];
                 continue;
@@ -419,7 +520,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
         if text.starts_with('*') && !text.starts_with("**") {
             if let Some(end) = text[1..].find('*') {
                 events.push(Event::Start(Tag::Emphasis));
-                parse_inline(&text[1..1 + end], events, warnings, in_ruby);
+                parse_inline(&text[1..1 + end], events, warnings, in_ruby, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Emphasis));
                 text = &text[1 + end + 1..];
                 continue;
@@ -465,6 +566,33 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                 }
             }
         }
+        // Footnote reference: [^id]
+        if text.starts_with("[^") {
+            if let Some(bracket_end) = text[2..].find(']') {
+                let id = &text[2..2 + bracket_end];
+                if !id.is_empty() && !id.contains(' ') {
+                    let total_len = 2 + bracket_end + 1;
+                    if fn_defs.iter().any(|(did, _)| *did == id) {
+                        let num = if let Some(pos) = fn_refs.iter().position(|r| *r == id) {
+                            (pos + 1) as u32
+                        } else {
+                            fn_refs.push(id);
+                            fn_refs.len() as u32
+                        };
+                        events.push(Event::FootnoteRef(num));
+                    } else {
+                        warnings.push(format!(
+                            "Footnote reference '[^{}]' has no matching definition.",
+                            id
+                        ));
+                        events.push(Event::Text(&text[..total_len]));
+                    }
+                    text = &text[total_len..];
+                    continue;
+                }
+            }
+        }
+
         // [content](url)  or  [base/ruby]
         if text.starts_with('[') {
             let mut bracket = 0;
@@ -484,7 +612,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                         let close_paren = cb + 2 + cp;
                         let href = &text[cb + 2..close_paren];
                         events.push(Event::Start(Tag::Link(href)));
-                        parse_inline(content, events, warnings, in_ruby);
+                        parse_inline(content, events, warnings, in_ruby, fn_defs, fn_refs);
                         events.push(Event::End(Tag::Link(href)));
                         text = &text[close_paren + 1..];
                         continue;
@@ -510,7 +638,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                     }
                     
                     events.push(Event::Start(Tag::Ruby(ruby)));
-                    parse_inline(base, events, warnings, true);
+                    parse_inline(base, events, warnings, true, fn_defs, fn_refs);
                     events.push(Event::End(Tag::Ruby(ruby)));
                     text = &text[cb + 1..];
                     continue;
@@ -573,10 +701,10 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                     // We keep Gloss(Vec) for the End event for html.rs symmetry
                     let notes_owned: Vec<&str> = notes.to_vec();
                     events.push(Event::Start(Tag::Gloss(notes_owned.clone())));
-                    parse_inline(base, events, warnings, false);
+                    parse_inline(base, events, warnings, false, fn_defs, fn_refs);
                     for note in notes_owned.iter() {
                         events.push(Event::Start(Tag::GlossNote));
-                        parse_inline(note, events, warnings, false);
+                        parse_inline(note, events, warnings, false, fn_defs, fn_refs);
                         events.push(Event::End(Tag::GlossNote));
                     }
                     events.push(Event::End(Tag::Gloss(notes_owned)));

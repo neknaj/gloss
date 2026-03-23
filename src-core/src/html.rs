@@ -13,6 +13,12 @@ pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
             Event::SoftBreak => out.push('\n'),
             Event::HardBreak => out.push_str("<br/>\n"),
             Event::Rule => out.push_str("<hr/>\n"),
+            Event::CardLink(url) => {
+                let escaped = escape_html(url);
+                out.push_str(&format!(
+                    "<a href=\"{escaped}\" class=\"nm-card-link\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"nm-card-url\">{escaped}</span></a>\n"
+                ));
+            }
             Event::MathDisplay(m) => {
                 let mathml = latex2mathml::latex_to_mathml(m, latex2mathml::DisplayStyle::Block)
                     .unwrap_or_else(|_| escape_html(m).to_string());
@@ -37,7 +43,18 @@ pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
             Event::End(Tag::Item) => out.push_str("</li>\n"),
             Event::Start(Tag::Code) => out.push_str("<code class=\"nm-code-inline\">"),
             Event::End(Tag::Code) => out.push_str("</code>"),
-            Event::Start(Tag::CodeBlock(lang)) => {
+            Event::Start(Tag::CodeBlock(lang, filename)) => {
+                let has_header = !lang.is_empty() || !filename.is_empty();
+                if has_header {
+                    out.push_str("<div class=\"nm-code-container\"><div class=\"nm-code-header\">");
+                    if !lang.is_empty() {
+                        out.push_str(&format!("<span class=\"nm-badge-main\">{}</span>", escape_html(lang)));
+                    }
+                    if !filename.is_empty() {
+                        out.push_str(&format!("<span class=\"nm-badge-flag\">{}</span>", escape_html(filename)));
+                    }
+                    out.push_str("</div><div class=\"nm-code-content\">");
+                }
                 let cls = if lang.is_empty() {
                     String::new()
                 } else {
@@ -45,7 +62,14 @@ pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
                 };
                 out.push_str(&format!("<pre class=\"nm-code\"><code class=\"{}\">", cls));
             }
-            Event::End(Tag::CodeBlock(_)) => out.push_str("</code></pre>\n"),
+            Event::End(Tag::CodeBlock(lang, filename)) => {
+                let has_header = !lang.is_empty() || !filename.is_empty();
+                out.push_str("</code></pre>");
+                if has_header {
+                    out.push_str("</div></div>");
+                }
+                out.push('\n');
+            }
             Event::Start(Tag::Blockquote) => out.push_str("<blockquote class=\"nm-blockquote\">\n"),
             Event::End(Tag::Blockquote) => out.push_str("</blockquote>\n"),
             Event::Start(Tag::Table(_)) => out.push_str("<div class=\"nm-table-wrap\"><table class=\"nm-table\">\n"),
@@ -119,6 +143,23 @@ pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
             }
             Event::End(Tag::GlossNote) => {
                 out.push_str("</span>");
+            }
+            Event::FootnoteRef(n) => {
+                out.push_str(&format!(
+                    "<sup class=\"nm-fn-ref\"><a href=\"#fn-{n}\" id=\"fnref-{n}\">{n}</a></sup>"
+                ));
+            }
+            Event::Start(Tag::FootnoteSection) => {
+                out.push_str("<section class=\"nm-footnotes\"><ol>\n");
+            }
+            Event::End(Tag::FootnoteSection) => {
+                out.push_str("</ol></section>\n");
+            }
+            Event::Start(Tag::FootnoteItem(n)) => {
+                out.push_str(&format!("<li id=\"fn-{n}\">"));
+            }
+            Event::End(Tag::FootnoteItem(n)) => {
+                out.push_str(&format!(" <a href=\"#fnref-{n}\" class=\"nm-fn-back\">↩</a></li>\n"));
             }
         }
     }

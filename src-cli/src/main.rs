@@ -53,6 +53,17 @@ del { text-decoration: line-through; color: var(--muted); }
 .nm-code { background: var(--code); padding: 12px; overflow: auto; margin: 0; border: none; border-radius: 0; }
 .nm-code code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; white-space: pre; }
 .nm-code-inline { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; padding: 1px 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; }
+.nm-badge-main { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #7aa2f7; color: #1a202e; font-size: 11px; font-weight: bold; letter-spacing: .05em; }
+.nm-badge-flag { display: inline-block; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: var(--muted); font-size: 11px; }
+.nm-card-link { display: block; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin: 16px 0; background: var(--card); color: var(--fg); text-decoration: none; transition: border-color 0.15s; }
+.nm-card-link:hover { border-color: var(--accent); }
+.nm-card-url { display: block; font-size: 0.85em; color: var(--muted); word-break: break-all; }
+.nm-fn-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }
+.nm-fn-ref a { color: var(--accent); text-decoration: none; }
+.nm-footnotes { margin-top: 32px; border-top: 1px solid var(--border); padding-top: 12px; font-size: 0.9em; color: var(--muted); }
+.nm-footnotes ol { padding-left: 20px; }
+.nm-footnotes li { margin: 4px 0; }
+.nm-fn-back { color: var(--muted); text-decoration: none; margin-left: 4px; }
 
 /* Unified Ruby and Gloss Styles */
 ruby rt {

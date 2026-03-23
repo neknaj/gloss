@@ -88,7 +88,9 @@
 
 ---
 
-## コードブロック
+## コードブロック（ファイル名[付/つ]き）
+
+言語[名/めい]のみ：
 
 ```rust
 fn main() {
@@ -97,6 +99,14 @@ fn main() {
     let mut out = String::new();
     push_html(&mut out, parser);
     println!("{}", [出力/しゅつりょく]);
+}
+```
+
+言語[名/めい]とファイル名[付/つ]き：
+
+```rust:src/main.rs
+fn main() {
+    println!("Hello, Gloss!");
 }
 ```
 
@@ -187,6 +197,26 @@ $$\oint_{\partial \Omega} \mathbf{E} \cdot d\mathbf{S} = \frac{1}{\varepsilon_0}
 {シュレーディンガー[方程式/ほうていしき]/Schrödinger equation}：
 
 $$i\hbar\frac{\partial}{\partial t}\Psi(\mathbf{r},t) = \left[ -\frac{\hbar^2}{2m}\nabla^2 + V(\mathbf{r},t) \right] \Psi(\mathbf{r},t)$$
+
+---
+
+## カード[型/がた]リンク
+
+`@[card](URL)` の[形式/けいしき]で[単独/たんどく][行/ぎょう]に[書/か]くと、カード[表示/ひょうじ]になります。
+
+@[card](https://www.rust-lang.org)
+
+---
+
+## [脚注/きゃくちゅう]
+
+[脚注/きゃくちゅう]を[付/つ]けたい[場所/ばしょ]に `[^id]` と[書/か]き、[文書/ぶんしょ]の[任意/にんい]の[場所/ばしょ]に[定義/ていぎ]を[置/お]きます。
+
+Gloss[記法/きほう]は[複数/ふくすう]の[言語/げんご]での[並記/へいき]を[可能/かのう]にします[^gloss]。
+[数式/すうしき]は KaTeX でレンダリングされます[^math]。
+
+[^gloss]: [詳細/しょうさい]は[公式/こうしき]の仕様書 `doc/spec.md` を[参照/さんしょう]してください。
+[^math]: `$$...$$` で[囲/かこ]むと[別行/べつぎょう][立/だ]て[数式/すうしき]になります。
 
 ---
 

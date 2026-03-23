@@ -1,6 +1,14 @@
 use src_core::parser::Parser;
 use src_core::html::push_html;
 
+fn render_with_warnings(md: &str) -> (String, Vec<String>) {
+    let parser = Parser::new(md);
+    let warnings = parser.warnings.clone();
+    let mut out = String::new();
+    push_html(&mut out, parser);
+    (out.trim().to_string(), warnings)
+}
+
 fn render(md: &str) -> String {
     let parser = Parser::new(md);
     let mut out = String::new();
@@ -54,9 +62,30 @@ fn test_inline_formats() {
 }
 
 #[test]
-fn test_code_fence() {
-    let md = "```rust\nfn main() {}\n```";
-    assert_eq!(render(md), "<pre class=\"nm-code\"><code class=\" language-rust\">fn main() {}\n</code></pre>");
+fn test_code_fence_no_info() {
+    let md = "```\nplain\n```";
+    assert_eq!(
+        render(md),
+        "<pre class=\"nm-code\"><code class=\"\">plain\n</code></pre>"
+    );
+}
+
+#[test]
+fn test_code_fence_lang_only() {
+    let md = "```rust\nfn f() {}\n```";
+    assert_eq!(
+        render(md),
+        "<div class=\"nm-code-container\"><div class=\"nm-code-header\"><span class=\"nm-badge-main\">rust</span></div><div class=\"nm-code-content\"><pre class=\"nm-code\"><code class=\" language-rust\">fn f() {}\n</code></pre></div></div>"
+    );
+}
+
+#[test]
+fn test_code_fence_lang_and_filename() {
+    let md = "```rust:src/main.rs\nfn f() {}\n```";
+    assert_eq!(
+        render(md),
+        "<div class=\"nm-code-container\"><div class=\"nm-code-header\"><span class=\"nm-badge-main\">rust</span><span class=\"nm-badge-flag\">src/main.rs</span></div><div class=\"nm-code-content\"><pre class=\"nm-code\"><code class=\" language-rust\">fn f() {}\n</code></pre></div></div>"
+    );
 }
 
 #[test]
@@ -70,6 +99,68 @@ fn test_table() {
 </tbody>
 </table></div>"#;
     assert_eq!(render(md), expected.trim());
+}
+
+#[test]
+fn test_card_link() {
+    assert_eq!(
+        render("@[card](https://example.com)"),
+        "<a href=\"https://example.com\" class=\"nm-card-link\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"nm-card-url\">https://example.com</span></a>"
+    );
+}
+
+#[test]
+fn test_card_link_warn_non_http() {
+    let (_, warnings) = render_with_warnings("@[card](ftp://example.com)");
+    assert!(warnings.iter().any(|w| w.contains("http")));
+}
+
+#[test]
+fn test_card_link_warn_unknown_type() {
+    let (_, warnings) = render_with_warnings("@[embed](https://example.com)");
+    assert!(warnings.iter().any(|w| w.contains("embed")));
+}
+
+#[test]
+fn test_footnote_basic() {
+    let md = "Hello[^1] world.\n\n[^1]: A footnote.";
+    let (html, _) = render_with_warnings(md);
+    assert!(html.contains("<sup class=\"nm-fn-ref\"><a href=\"#fn-1\" id=\"fnref-1\">1</a></sup>"), "missing ref: {html}");
+    assert!(html.contains("<section class=\"nm-footnotes\">"), "missing section: {html}");
+    assert!(html.contains("<li id=\"fn-1\">A footnote."), "missing item: {html}");
+    assert!(html.contains("href=\"#fnref-1\""), "missing back link: {html}");
+}
+
+#[test]
+fn test_footnote_multiple() {
+    let md = "First[^a] and second[^b].\n\n[^a]: Note A.\n[^b]: Note B.";
+    let (html, _) = render_with_warnings(md);
+    assert!(html.contains("id=\"fn-1\""), "missing fn-1: {html}");
+    assert!(html.contains("id=\"fn-2\""), "missing fn-2: {html}");
+    assert!(html.contains("Note A."), "missing A: {html}");
+    assert!(html.contains("Note B."), "missing B: {html}");
+}
+
+#[test]
+fn test_footnote_definition_not_rendered_inline() {
+    let md = "Text.\n\n[^1]: A note.";
+    let (html, _) = render_with_warnings(md);
+    assert!(!html.contains("<p>[^1]"), "def line leaked into paragraph: {html}");
+}
+
+#[test]
+fn test_footnote_warn_undefined_ref() {
+    let (_, warnings) = render_with_warnings("Text[^x].");
+    assert!(warnings.iter().any(|w| w.contains("[^x]")), "expected warn: {warnings:?}");
+}
+
+#[test]
+fn test_footnote_warn_unused_def() {
+    let (_, warnings) = render_with_warnings("Text.\n\n[^1]: Unused note.");
+    assert!(
+        warnings.iter().any(|w| w.contains("[^1]") && w.contains("never referenced")),
+        "expected warn: {warnings:?}"
+    );
 }
 
 #[test]
