@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Gloss Markdown Preview</title>
+<style>
+:root {
+  --bg: #0b0f19;
+  --fg: #e6edf3;
+  --muted: #aab6c3;
+  --card: #121a2a;
+  --border: #23304a;
+  --code: #0f1626;
+  --accent: #7aa2f7;
+}
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  line-height: 1.65;
+  margin: 0;
+  height: 100vh;
+}
+main { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+a { color: var(--accent); }
+hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+.nm-sec { padding: 0.5em; padding-left: 2em; margin: 1em; border-left: 3px solid var(--border); border-radius: 1em; }
+h1, h2, h3, h4, h5, h6 { margin: 18px 0 10px; }
+p { margin: 10px 0; }
+ul, ol { margin: 10px 0 10px 22px; }
+strong { font-weight: 700; }
+em { font-style: italic; }
+del { text-decoration: line-through; color: var(--muted); }
+.nm-image { max-width: 100%; border-radius: 8px; }
+.nm-blockquote { border-left: 4px solid var(--border); margin: 12px 0; padding: 8px 16px; background: rgba(255,255,255,0.02); border-radius: 0 8px 8px 0; color: var(--muted); }
+.nm-blockquote p { margin: 4px 0; }
+.nm-table-wrap { overflow-x: auto; margin: 16px 0; }
+.nm-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.nm-table th, .nm-table td { border: 1px solid var(--border); padding: 6px 12px; text-align: left; }
+.nm-table thead tr { background: rgba(122,162,247,0.12); }
+.nm-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.nm-table th { font-weight: 600; color: var(--accent); }
+.nm-code-container { border: 1px solid var(--border); border-radius: 12px; background: var(--card); margin: 24px 0; overflow: hidden; }
+.nm-code-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.nm-code-content { position: relative; }
+.nm-code { background: var(--code); padding: 12px; overflow: auto; margin: 0; border: none; border-radius: 0; }
+.nm-code code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; white-space: pre; }
+.nm-code-inline { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; padding: 1px 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; }
+
+/* Unified Ruby and Gloss Styles */
+ruby rt {
+  font-size: 0.65em;
+  color: var(--muted);
+  opacity: 0.9;
+  line-height: 1;
+}
+.nm-ruby { ruby-position: over; }
+.nm-gloss { ruby-position: under; }
+.nm-gloss rt { font-size: 0.65em; }
+.nm-gloss-note { display: inline; }
+.nm-gloss-note + .nm-gloss-note::before { content: ' / '; opacity: 0.6; }
+
+.math-inline { color: var(--muted); }
+.math-display {
+  display: block;
+  padding: 8px 10px;
+  margin: 8px 0;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  document.querySelectorAll('.math-inline, .math-display').forEach(function(el) {
+    var texSpan = el.querySelector('.math-tex');
+    if (texSpan) {
+      katex.render(texSpan.textContent, el, {
+        displayMode: el.classList.contains('math-display'),
+        throwOnError: false
+      });
+    }
+  });
+});
+</script>
+</head>
+<body>
+<main>
+<p>これは<ruby class="nm-ruby"><rb>漢字</rb><rt>かんじ</rt></ruby>ではなく[漢字かんじという失敗例です</p>
+<p>{テスト/てすと は閉じ忘れ</p>
+<p>$これは閉じていない数式</p>
+<p>$$これも閉じていない</p>
+
+</main>
+</body>
+</html>

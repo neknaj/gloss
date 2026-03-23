@@ -358,14 +358,18 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                 events.push(Event::MathDisplay(&text[2..2 + end]));
                 text = &text[2 + end + 2..];
                 continue;
+            } else {
+                warnings.push("Unclosed '$$' math block: no matching '$$' found.".to_string());
             }
         }
         // $ math inline
-        if text.starts_with('$') {
+        if text.starts_with('$') && !text.starts_with("$$") {
             if let Some(end) = text[1..].find('$') {
                 events.push(Event::MathInline(&text[1..1 + end]));
                 text = &text[1 + end + 1..];
                 continue;
+            } else {
+                warnings.push("Unclosed '$' math expression: no matching '$' found.".to_string());
             }
         }
         // `code`
@@ -498,6 +502,18 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                     text = &text[cb + 1..];
                     continue;
                 }
+                // Has ']' but no '/' — not a ruby or valid link
+                // Check if it looks like a broken [{...}/...] pattern
+                if content.contains('/') {
+                    warnings.push(format!("Possibly malformed ruby syntax '[{}]': has '/' but nested brackets prevent parsing.", &content[..content.len().min(30)]));
+                }
+            } else {
+                // No matching ']' found at all
+                let snippet: String = text.chars().take(30).collect();
+                // Only warn if the text after '[' contains '/' (looks like broken ruby/gloss)
+                if text[1..].contains('/') || text[1..].contains(']') {
+                    warnings.push(format!("Possibly malformed ruby syntax: '[' with no matching ']' near '{}'.", snippet));
+                }
             }
         }
         // {base/note1/note2…}
@@ -554,6 +570,9 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                     text = &text[end + 1..];
                     continue;
                 }
+            } else {
+                let snippet: String = text.chars().take(30).collect();
+                warnings.push(format!("Possibly malformed gloss syntax: '{{' with no matching '}}' near '{}'.", snippet));
             }
         }
 
