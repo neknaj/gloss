@@ -65,15 +65,27 @@ impl<'a> Parser<'a> {
 
 // Helpers for checking Unicode properties of characters
 fn is_kanji(c: char) -> bool {
-    matches!(c, '\u{4E00}'..='\u{9FFF}' | '\u{3400}'..='\u{4DBF}' | '\u{20000}'..='\u{2A6DF}' | '\u{F900}'..='\u{FAFF}' | '\u{3005}')
+    matches!(c,
+        '\u{4E00}'..='\u{9FFF}' |   // CJK Unified Ideographs
+        '\u{3400}'..='\u{4DBF}' |   // CJK Extension A
+        '\u{20000}'..='\u{2A6DF}' | // CJK Extension B
+        '\u{2A700}'..='\u{2B73F}' | // CJK Extension C
+        '\u{2B740}'..='\u{2B81F}' | // CJK Extension D
+        '\u{2B820}'..='\u{2CEAF}' | // CJK Extension E
+        '\u{2CEB0}'..='\u{2EBEF}' | // CJK Extension F
+        '\u{30000}'..='\u{3134F}' | // CJK Extension G
+        '\u{F900}'..='\u{FAFF}' |   // CJK Compatibility Ideographs
+        '\u{2F800}'..='\u{2FA1F}' | // CJK Compatibility Ideographs Supplement
+        '\u{3005}'                  // 々 iteration mark
+    )
 }
 
 fn contains_kanji(s: &str) -> bool {
     s.chars().any(is_kanji)
 }
 
-/// Returns true if the string contains only Hiragana, Katakana, Bopomofo, Japanese/CJK punctuation,
-/// and common CJK iteration/extension marks — i.e. no Kanji, no Latin, no Arabic numerals.
+/// Returns true if the string consists of phonetic/reading scripts:
+/// Hiragana, Katakana, Bopomofo, Hangul, or Vietnamese-specific Latin.
 fn is_purely_kana_or_punct(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| {
         matches!(c,
@@ -86,17 +98,18 @@ fn is_purely_kana_or_punct(s: &str) -> bool {
             '\u{FF00}'..='\u{FF60}' | // Fullwidth Latin / punctuation
             '\u{FFE0}'..='\u{FFE6}' | // Fullwidth currency/signs
             '\u{30FC}' |              // Katakana-Hiragana prolonged sound mark ー
-            '\u{3005}' |              // 々 iteration mark
             '\u{30FB}' |              // ・
-            // Bopomofo (注音符号 / Zhuyin) — used in Taiwanese Mandarin ruby
-            '\u{02CA}' |              // ˊ second tone
-            '\u{02C7}' |              // ˇ third tone
-            '\u{02CB}' |              // ˋ fourth tone
-            '\u{02D9}' |              // ˙ neutral tone
-            '\u{31A0}'..='\u{31BF}' | // Bopomofo Extended
-            '\u{02EA}'..='\u{02EB}' | // Modifier letter yin/yang departing tones
-            '\u{3100}'..='\u{312F}' | // Bopomofo (ㄅ—ㄩ range)
-            ' '                       // regular space (for multi-syllable annotations)
+            // Bopomofo (注音符号 / Zhuyin)
+            '\u{02CA}' | '\u{02C7}' | '\u{02CB}' | '\u{02D9}' |
+            '\u{31A0}'..='\u{31BF}' | '\u{3100}'..='\u{312F}' |
+            // Hangul (Korean)
+            '\u{AC00}'..='\u{D7AF}' | // Hangul Syllables
+            '\u{1100}'..='\u{11FF}' | // Hangul Jamo
+            '\u{3130}'..='\u{318F}' | // Hangul Compatibility Jamo
+            // Vietnamese Latin (Quốc Ngữ) specific diacritics & Pinyin
+            '\u{0100}'..='\u{024F}' | // Latin Extended-A & B (includes Đ, đ, ă, â, ê, ô, ơ, ư, etc.)
+            '\u{1E00}'..='\u{1EFF}' | // Latin Extended Additional (includes Vietnamese tone marks)
+            ' '                       // space
         )
     })
 }
@@ -551,7 +564,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                     // {漢字/かんじ} with single purely-kana note → likely should be [漢字/かんじ]
                     if notes.len() == 1 && contains_kanji(base) && is_purely_kana_or_punct(notes[0]) {
                         warnings.push(format!(
-                            "Gloss '{{{}/ {}}}' looks like a Ruby reading. Did you mean '[{}/{}]'?",
+                            "Gloss '{{{}/{}}}' looks like a Ruby reading. Did you mean '[{}/{}]'?",
                             base, notes[0], base, notes[0]
                         ));
                     }
