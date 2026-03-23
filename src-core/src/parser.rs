@@ -1,3 +1,12 @@
+//! Gloss markup parser — generates an [`Event`] stream from Gloss Markdown.
+//!
+//! Gloss extends standard Markdown with five named features:
+//! - **Ruby** (`[base/reading]`) — phonetic annotation above text
+//! - **Anno** (`{base/note1/note2/...}`) — semantic annotation below text
+//! - **Nest** (`---` / `;;;`) — explicit section-close markers
+//! - **Math** (`$…$` / `$$…$$`) — KaTeX math; brackets inside are not parsed as Ruby/Anno
+//! - **Lint** — parser warnings collected in [`Parser::warnings`]
+
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::format;

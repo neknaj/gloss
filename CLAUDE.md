@@ -4,12 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-A Rust library and toolchain for a custom Markdown dialect called **Gloss** that adds ruby annotation and multilingual anno notation to standard Markdown:
+**Gloss** is a Rust library and toolchain for a custom Markdown dialect. It extends standard Markdown with five named features:
 
-- `[漢字/かんじ]` — ruby (furigana/phonetic annotation above text)
-- `{用語/anno}` or `{word/lang1/lang2}` — anno (annotation below text; translation, grammar, classification, etc.)
-- `$...$` / `$$...$$` — math (KaTeX; brackets inside are not parsed as ruby/anno)
-- Input files conventionally use `.n.md` extension
+| Feature | Syntax | Description |
+|---------|--------|-------------|
+| **Ruby** | `[漢字/かんじ]` | Phonetic annotation *above* text — furigana, pinyin, bopomofo, transliteration, etc. |
+| **Anno** | `{用語/term}` / `{w/a/b}` | Semantic annotation *below* text — translation, grammar (case/POS), classification, interlinear gloss |
+| **Nest** | `---` / `;;;` | Explicit section-close markers; `---` closes and draws `<hr>`, `;;;` closes silently. Both maintain `<section class="nm-sec level-N">` hierarchy |
+| **Math** | `$…$` / `$$…$$` | Inline / display math via KaTeX; `[/]` `{/}` inside are not parsed as Ruby/Anno |
+| **Lint** | — | Parser warnings: malformed Ruby/Anno brackets, lone `$`, katakana base + hiragana reading, kanji without ruby, undefined/unused footnotes, non-HTTP card links |
+
+Input files conventionally use the `.n.md` extension.
 
 ## Workspace Structure
 
@@ -53,8 +58,8 @@ cd web-playground && npm run build:ts
 
 ### Key Behaviors
 
-- The parser emits warnings (stored in `Parser::warnings`) for malformed syntax (unclosed brackets, lone `$` signs, etc.). CLI prints them to stderr in yellow; web playground shows them in an amber warning box above the preview.
-- Math output: the HTML generator emits both native MathML (via `latex2mathml`) and a hidden `.math-tex` span; the web playground uses KaTeX to re-render from the hidden span.
+- **Lint**: `Parser::warnings: Vec<String>` collects all lint messages during parsing. CLI prints them to stderr in yellow; web playground shows them in an amber warning box above the preview.
+- **Math**: the HTML generator emits both native MathML (via `latex2mathml`) and a hidden `.math-tex` span; the web playground uses KaTeX to re-render from the hidden span.
 - `src-core` is `#![no_std]` — only `alloc` is available. Do not add `std` dependencies.
 
 ## Test Architecture

@@ -1,6 +1,6 @@
 # Gloss Markup Specification (Draft v0.1)
 
-この文書は、Gloss 記法（`[base/reading]` と `{line1/line2/...}`）および `$...$` / `$$...$$` による数式区間を、**パーサーが生成する構文木（AST）**まで含めて定義する仕様書です。  
+この文書は、Gloss の5つの拡張構文（**Ruby**・**Anno**・**Nest**・**Math**・**Lint**）を、**パーサーが生成する構文木（AST）**まで含めて定義する仕様書です。
 本仕様は README に記載された「多言語（複数行）」「Anno の下段でも Ruby を使う」例を **そのまま実現できる**ことを要件として策定します。
 
 ---
@@ -9,7 +9,9 @@
 
 - **Ruby**: ルビ（発音・転写・注釈）を簡潔に書く（例: `[漢字/かんじ]`）。
 - **Anno**: 上段本文（表示の主文字列）に対し、下段に 1 行以上の別表記（英語・転写・別言語など）を添える（例: `{微分係数/derivative}`、`{佛罗伦萨/Firenze/Florence}`）。
+- **Nest**: `---` / `;;;` でセクション階層を明示的に閉じる。見出しレベルが `<section class="nm-sec level-N">` のネスト深さに対応する。
 - **Math**: `$...$` / `$$...$$` を「数式区間」として扱い、区間内部の `[]` `{}` `/` が Anno/Ruby と誤解釈されないようにする。
+- **Lint**: 構文ミスや非推奨パターンを `Parser::warnings` に収集して報告する。
 
 > 注: KaTeX などの auto-render を使う場合、利用環境によっては `$...$` を delimiters に追加設定する必要がある。
 
@@ -157,21 +159,78 @@ AnnoBlock := '{' AnnoLine ( '/' AnnoLine )* '}'
 
 ---
 
-## 7. Math Segment（`$...$`, `$$...$$`）
+## 7. Nest（`---` / `;;;`）
+
+Nest は見出し（`#`〜`######`）によって自動的に開かれる `<section>` 要素を、**明示的に**閉じるための構文である。
 
 ### 7.1 構文（規範）
+
+| 記号 | 動作 |
+|------|------|
+| `---`（段落として現れる水平線） | 現在のセクションを閉じ、`<hr/>` を描画する |
+| `;;;`（単独行） | 現在のセクションを閉じる（HR なし） |
+
+- `---` は Markdown の水平線（thematic break）として現れたときのみ Nest として扱う。インライン文字列としての `---` は通常テキスト。
+- `;;;` は行の先頭から行末まで `;;;` のみの行を Nest クローズとして扱う。
+
+### 7.2 セクション対応（規範）
+
+- 見出し `# H1` は `<section class="nm-sec level-1">` を開く。
+- 見出し `## H2` は `<section class="nm-sec level-2">` を開く（以下同様）。
+- `---` / `;;;` は**現在開いている最も深いセクション**を 1 つ閉じる。
+- ドキュメント終端では、開いているすべてのセクションが自動的に閉じられる。
+
+### 7.3 出力例（非規範）
+
+入力:
+```markdown
+# H1
+## H2
+内容
+
+---
+
+## H2-2
+### H3
+
+;;;
+```
+
+出力:
+```html
+<section class="nm-sec level-1">
+<h1>H1</h1>
+<section class="nm-sec level-2">
+<h2>H2</h2>
+<p>内容</p>
+<hr/>
+</section>
+<section class="nm-sec level-2">
+<h2>H2-2</h2>
+<section class="nm-sec level-3">
+<h3>H3</h3>
+</section>
+</section>
+</section>
+```
+
+---
+
+## 8. Math Segment（`$...$`, `$$...$$`）
+
+### 8.1 構文（規範）
 
 - Inline: `$ TEX $`（display = false）
 - Display: `$$ TEX $$`（display = true）
 
 `TEX` は終端区切りが現れるまでの部分文字列とし、内部は **再帰解析しない**。
 
-### 7.2 優先順位（規範）
+### 8.2 優先順位（規範）
 
 - `$$...$$` は `$...$` より優先して認識する（`$$` のほうが長い区切りなので先に試す）。
 - Math 区間内部の `[]` `{}` `/` は Anno/Ruby の構文として解釈しない。
 
-### 7.3 エスケープ（規範）
+### 8.3 エスケープ（規範）
 
 - **開始 delimiter**（`$` または `$$`）は、直前の連続 `\` の個数が **奇数**のとき「エスケープされた通常文字」として扱い、Math を開始しない。
 - **終端 delimiter** も同様に、直前の連続 `\` の個数が奇数のとき終端として扱わない。
@@ -181,7 +240,7 @@ AnnoBlock := '{' AnnoLine ( '/' AnnoLine )* '}'
 
 ---
 
-## 8. パース手順（規範）
+## 9. パース手順（規範）
 
 パーサーは左から右へ走査して Segment を生成する。実装上、次の優先順位を推奨する。
 
@@ -190,7 +249,7 @@ AnnoBlock := '{' AnnoLine ( '/' AnnoLine )* '}'
 3. **RubyBlock**（`[...]`）
 4. それ以外は Plain
 
-### 8.1 AnnoLine の解析（規範）
+### 9.1 AnnoLine の解析（規範）
 
 AnnoBlock 内部は次の規則で AnnoLine を構築する。
 
@@ -199,7 +258,7 @@ AnnoBlock 内部は次の規則で AnnoLine を構築する。
 - `/` を見たら「未エスケープ」であり Ruby/Math の外側なら次の AnnoLine を開始
 - `}`（未エスケープ）で AnnoBlock 終了
 
-### 8.2 RubyBase の解析（規範）
+### 9.2 RubyBase の解析（規範）
 
 RubyBase は **InlineSegment** 列として構築する。
 
@@ -209,7 +268,9 @@ RubyBase は **InlineSegment** 列として構築する。
 
 ---
 
-## 9. エラー処理（フォールバック規則）
+## 10. Lint / エラー処理
+
+### 10.1 フォールバック規則（規範）
 
 パーサーは「失敗した構文を壊さない」方針を採る。
 
@@ -220,14 +281,30 @@ RubyBase は **InlineSegment** 列として構築する。
 - Math:
     - 対応する終端 `$`（または `$$`）が見つからない場合は Math として解釈しない。
 
-**フォールバック規則（規範）**  
 いずれの構文でも失敗した場合、「開始記号 1 文字」を Plain として出力し、解析を継続する（隣接 Plain は結合してよい）。
+
+### 10.2 Lint 警告（規範）
+
+パーサーは `warnings: Vec<String>` に警告を収集する。CLI は黄色で stderr に出力し、Web は警告ボックスに表示する。
+
+| 警告 | 条件 |
+|------|------|
+| Possibly malformed ruby syntax | `[` に対応 `]` がない、またはネストが壊れている |
+| Possibly malformed anno syntax | `{` に対応 `}` がない |
+| Unclosed `$` / `$$` | 数式が閉じられていない |
+| Anno looks like Ruby | `{漢字/かな}` — Anno のつもりが Ruby 記法に見える |
+| Katakana base + hiragana reading | `[インド/いんど]` — カタカナはすでに表音文字 |
+| Kanji without ruby | ルビのない漢字がテキストに含まれる |
+| Undefined footnote ref | `[^id]` の定義がない |
+| Unused footnote def | `[^id]: …` が参照されていない |
+| Card link: non-HTTP URL | `@[card](ftp://…)` など |
+| Card link: unknown type | `@[embed](…)` など未対応タイプ |
 
 ---
 
-## 10. HTML レンダリング指針（非規範）
+## 11. HTML レンダリング指針（非規範）
 
-### 10.1 Ruby
+### 11.1 Ruby
 
 HTML の Ruby マークアップの利用を推奨する。
 
@@ -235,16 +312,18 @@ HTML の Ruby マークアップの利用を推奨する。
 - 明示形: `<ruby><rb>base</rb><rt>reading</rt></ruby>`
 - 互換性のため、必要に応じて `<rp>` を用いたフォールバック括弧表示を追加してよい。
 
-### 10.2 Anno
+### 11.2 Anno
 
 Anno は `lines[0]`（上段）を本文として出し、`lines[1..]` を下段として縦に積む。
 
-- wrapper: `<span class="nm-anno">...</span>`
-- 下段行: `<span class="nm-anno-note">...</span>`
+- wrapper: `<ruby class="nm-anno"><rb>…</rb><rt>…</rt></ruby>`
+- 下段注記: `<span class="nm-anno-note">…</span>`（`<rt>` 内に配置）
 
-> 注: 既存 CSS の都合で `term/term-alt` のクラス名を継続利用してもよい（仕様用語としては anno を推奨）。
+### 11.3 Nest
 
-### 10.3 Math（README の方針との整合）
+セクション開閉の HTML 出力は §7.3 の例を参照。
+
+### 11.4 Math（README の方針との整合）
 
 README の「`$` による TeX 数式記法を残す」を満たすため、HTML 生成は次のいずれかを採用してよい。
 
@@ -253,25 +332,25 @@ README の「`$` による TeX 数式記法を残す」を満たすため、HTML
 
 ---
 
-## 11. テストケース（抜粋）
+## 12. テストケース（抜粋）
 
-### 11.1 Ruby
+### 12.1 Ruby
 
 - `[私/わたし]` → Ruby(base="私", reading="わたし")
 - `[Text]` → Plain("[Text]")（`/` がないため）
 - `[a/b/c]` → Ruby(base="a", reading="b/c")（最初の未エスケープ `/` のみ区切り）
 - `[AC\/DC/えーしーでぃーしー]` → base=`"AC/DC"`
 
-### 11.2 Anno（多段＋注釈内 Ruby）
+### 12.2 Anno（多段＋注釈内 Ruby）
 
-- `{Nara/[奈良/なら]}`  
+- `{Nara/[奈良/なら]}`
   - `lines=["Nara", Ruby("奈良","なら")]`
-- `{[台湾/たいわん]/[台灣/Táiwān]}に行く`  
+- `{[台湾/たいわん]/[台灣/Táiwān]}に行く`
   - `lines[0]` と `lines[1]` の両方に Ruby が出現しうる
-- `{佛罗伦萨/Firenze/Florence}`  
+- `{佛罗伦萨/Firenze/Florence}`
   - `lines=["佛罗伦萨","Firenze","Florence"]`
 
-### 11.3 Math
+### 12.3 Math
 
 - `x=$\frac{1}{2}$` → Plain("x="), Math(tex="\frac{1}{2}", display=false)
 - `$$a_{[/]}$$` → Math 内の `[/]` は Ruby として解釈しない（保護される）
