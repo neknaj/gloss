@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Gloss Markdown Preview</title>
+<style>
+:root {
+  --bg: #0b0f19;
+  --fg: #e6edf3;
+  --muted: #aab6c3;
+  --card: #121a2a;
+  --border: #23304a;
+  --code: #0f1626;
+  --accent: #7aa2f7;
+  --err: #f7768e;
+  --ok: #9ece6a;
+  --math-fg: #d1d5db;
+}
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  line-height: 1.65;
+  margin: 0;
+  height: 100vh;
+}
+main { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+a { color: var(--accent); }
+hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+.nm-sec { padding: 0.5em; padding-left: 2em; margin: 1em; border-left: 3px solid var(--border); border-radius: 1em; }
+h1, h2, h3, h4, h5, h6 { margin: 18px 0 10px; }
+p { margin: 10px 0; }
+ul, ol { margin: 10px 0 10px 22px; }
+strong { font-weight: 700; }
+em { font-style: italic; }
+del { text-decoration: line-through; color: var(--muted); }
+.nm-image { max-width: 100%; border-radius: 8px; }
+.nm-blockquote { border-left: 4px solid var(--border); margin: 12px 0; padding: 8px 16px; background: rgba(255,255,255,0.02); border-radius: 0 8px 8px 0; color: var(--muted); }
+.nm-blockquote p { margin: 4px 0; }
+.nm-table-wrap { overflow-x: auto; margin: 16px 0; }
+.nm-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.nm-table th, .nm-table td { border: 1px solid var(--border); padding: 6px 12px; text-align: left; }
+.nm-table thead tr { background: rgba(122,162,247,0.12); }
+.nm-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.nm-table th { font-weight: 600; color: var(--accent); }
+.nm-code-container { border: 1px solid var(--border); border-radius: 12px; background: var(--card); margin: 24px 0; overflow: hidden; }
+.nm-code-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.nm-code-content { position: relative; }
+.nm-code { background: var(--code); padding: 12px; overflow: auto; margin: 0; border: none; border-radius: 0; }
+.nm-code code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; white-space: pre; }
+.nm-code-inline { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; padding: 1px 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; }
+
+/* Unified Ruby and Gloss Styles */
+ruby rt {
+  font-size: 0.65em;
+  color: var(--muted);
+  opacity: 0.9;
+  line-height: 1;
+}
+.nm-ruby { ruby-position: over; }
+.nm-gloss { ruby-position: under; }
+.nm-gloss rt { font-size: 0.65em; }
+.nm-gloss-note { display: inline; }
+.nm-gloss-note + .nm-gloss-note::before { content: ' / '; opacity: 0.6; }
+
+/* Math Styling */
+.math-inline, .math-display {
+  font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", serif;
+  color: var(--math-fg);
+}
+.math-inline { font-size: 1.05em; }
+.math-display {
+  display: block;
+  padding: 16px;
+  margin: 16px 0;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: 1.1em;
+}
+math { font-family: inherit; }
+</style>
+</head>
+<body>
+<main>
+<section class="nm-sec level-1">
+<h1>Gloss Web Playground — サンプル</h1>
+<p>このエディタでは <strong>Gloss 拡張 Markdown</strong> をリアルタイムでレンダリングできます。</p>
+<section class="nm-sec level-2">
+<h2>ルビ記法</h2>
+<p>日本語の<ruby class="nm-ruby"><rb>漢字</rb><rt>かんじ</rt></ruby>に読みを付けることができます。<br/>
+<ruby class="nm-ruby"><rb>複数</rb><rt>ふくすう</rt></ruby>の<ruby class="nm-ruby"><rb>単語</rb><rt>たんご</rt></ruby>をまとめて<ruby class="nm-ruby"><rb>書</rb><rt>か</rt></ruby>くことも<ruby class="nm-ruby"><rb>可能</rb><rt>かのう</rt></ruby>です。</p>
+</section>
+<section class="nm-sec level-2">
+<h2>Gloss 記法</h2>
+<p>言語学のグロス標記に使う構文です。</p>
+<ul>
+<li>単語に英語訳を付ける：<ruby class="nm-gloss"><rb>走る</rb><rt><span class="nm-gloss-note">run</span></rt></ruby></li>
+<li>多段グロス（複数言語・注釈）：<ruby class="nm-gloss"><rb>走る</rb><rt><span class="nm-gloss-note">run</span><span class="nm-gloss-note">to-run</span></rt></ruby></li>
+<li>ルビとグロスの組み合わせ：<ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>微分</rb><rt>びぶん</rt></ruby><ruby class="nm-ruby"><rb>係数</rb><rt>けいすう</rt></ruby></rb><rt><span class="nm-gloss-note">derivative</span></rt></ruby></li>
+</ul>
+</section>
+<hr/>
+<section class="nm-sec level-2">
+<h2>セクションのネスト</h2>
+<p><code class="nm-code-inline">---</code> を使うと <strong>現在のセクションを閉じ</strong>、直後に水平線を描きます。<br/>
+<code class="nm-code-inline">;;;</code> を使うと<strong>水平線なし</strong>でセクションを閉じます。</p>
+<section class="nm-sec level-3">
+<h3>小見出し（<code class="nm-code-inline">###</code>）</h3>
+<p>この<ruby class="nm-ruby"><rb>段落</rb><rt>だんらく</rt></ruby>は level-3 のセクション内にあります。</p>
+</section>
+<p>上の <code class="nm-code-inline">;;;</code> で level-3 が閉じられ、level-2 に戻りました。</p>
+</section>
+<hr/>
+<section class="nm-sec level-2">
+<h2>インライン装飾</h2>
+<ul>
+<li><strong>太字（bold）</strong></li>
+<li><em>斜体（italic）</em></li>
+<li><del>打ち消し線</del></li>
+<li><code class="nm-code-inline">インラインコード</code></li>
+<li><a href="https://example.com">リンク</a></li>
+<li>複合：<strong><ruby class="nm-ruby"><rb>漢字</rb><rt>かんじ</rt></ruby>の <code class="nm-code-inline">&lt;ruby&gt;</code> を<em>斜体</em>にする</strong></li>
+</ul>
+</section>
+<hr/>
+<section class="nm-sec level-2">
+<h2>リスト</h2>
+<section class="nm-sec level-3">
+<h3>順序なし</h3>
+<ul>
+<li>項目 A</li>
+<li>項目 B：<ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>形態素</rb><rt>けいたいそ</rt></ruby></rb><rt><span class="nm-gloss-note">morpheme</span></rt></ruby></li>
+<li>項目 C</li>
+</ul>
+</section>
+<section class="nm-sec level-3">
+<h3>番号付き</h3>
+<ol>
+<li>第一<ruby class="nm-ruby"><rb>章</rb><rt>しょう</rt></ruby>：はじめに</li>
+<li>第二<ruby class="nm-ruby"><rb>章</rb><rt>しょう</rt></ruby>：<ruby class="nm-ruby"><rb>理論</rb><rt>りろん</rt></ruby></li>
+<li>第三<ruby class="nm-ruby"><rb>章</rb><rt>しょう</rt></ruby>：おわりに</li>
+</ol>
+</section>
+<hr/>
+</section>
+<section class="nm-sec level-2">
+<h2>テーブル</h2>
+<div class="nm-table-wrap"><table class="nm-table">
+<thead><tr><th style="text-align:left"><ruby class="nm-ruby"><rb>記法</rb><rt>きほう</rt></ruby></th><th style="text-align:left">入力例</th><th style="text-align:right">出力</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align:left">Ruby</td><td style="text-align:left"><code class="nm-code-inline">[漢/かん]</code></td><td style="text-align:right"><ruby class="nm-ruby"><rb>漢</rb><rt>かん</rt></ruby></td></tr>
+<tr><td style="text-align:left">Gloss</td><td style="text-align:left"><code class="nm-code-inline">{word/gloss}</code></td><td style="text-align:right"><ruby class="nm-gloss"><rb>word</rb><rt><span class="nm-gloss-note">gloss</span></rt></ruby></td></tr>
+<tr><td style="text-align:left">Bold</td><td style="text-align:left"><code class="nm-code-inline">**text**</code></td><td style="text-align:right"><strong>text</strong></td></tr>
+<tr><td style="text-align:left">Italic</td><td style="text-align:left"><code class="nm-code-inline">*text*</code></td><td style="text-align:right"><em>text</em></td></tr>
+</tbody>
+</table></div>
+</section>
+<hr/>
+<section class="nm-sec level-2">
+<h2>コードブロック</h2>
+<pre class="nm-code"><code class=" language-rust">fn main() {
+    let text = &quot;# Hello\n[漢字/かんじ]&quot;;
+    let parser = Parser::new(text);
+    let mut out = String::new();
+    push_html(&amp;mut out, parser);
+    println!(&quot;{}&quot;, out);
+}
+</code></pre>
+</section>
+<hr/>
+<section class="nm-sec level-2">
+<h2>数式</h2>
+<section class="nm-sec level-3">
+<h3>基本的な数式</h3>
+<p>インライン数式：<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></math></span> — アインシュタインの<ruby class="nm-ruby"><rb>質量</rb><rt>しつりょう</rt></ruby><ruby class="nm-ruby"><rb>エネルギー</rb><rt>えねるぎー</rt></ruby><ruby class="nm-ruby"><rb>等価</rb><rt>とうか</rt></ruby><ruby class="nm-ruby"><rb>式</rb><rt>しき</rt></ruby>。</p>
+<p>ピタゴラスの<ruby class="nm-ruby"><rb>定理</rb><rt>ていり</rt></ruby>：<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><msup><mi>a</mi><mn>2</mn></msup><mo>+</mo><msup><mi>b</mi><mn>2</mn></msup><mo>=</mo><msup><mi>c</mi><mn>2</mn></msup></math></span></p>
+<p>二次<ruby class="nm-ruby"><rb>方程式</rb><rt>ほうていしき</rt></ruby>の<ruby class="nm-ruby"><rb>解</rb><rt>かい</rt></ruby>：<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>x</mi><mo>=</mo><mfrac><mrow><mo>-</mo><mi>b</mi><mo>±</mo><msqrt><mrow><msup><mi>b</mi><mn>2</mn></msup><mo>-</mo><mn>4</mn><mi>a</mi><mi>c</mi></mrow></msqrt></mrow><mrow><mn>2</mn><mi>a</mi></mrow></mfrac></math></span></p>
+</section>
+<section class="nm-sec level-3">
+<h3>解析学・微積分</h3>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>定積分</rb><rt>ていせきぶん</rt></ruby></rb><rt><span class="nm-gloss-note">definite integral</span></rt></ruby>：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><msubsup><mo>∫</mo><mrow><mo>-</mo><mi mathvariant="normal">∞</mi></mrow><mi mathvariant="normal">∞</mi></msubsup><msup><mi>e</mi><mrow><mo>-</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></msup><mi>d</mi><mi>x</mi><mo>=</mo><msqrt><mi>π</mi></msqrt></math></span>
+</p>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>微分</rb><rt>びぶん</rt></ruby></rb><rt><span class="nm-gloss-note">derivative</span></rt></ruby> の<ruby class="nm-ruby"><rb>定義</rb><rt>ていぎ</rt></ruby>：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><msup><mi>f</mi><mo>′</mo></msup><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><munder><mi>lim</mi><mrow><mi>h</mi><mo>→</mo><mn>0</mn></mrow></munder><mfrac><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>+</mo><mi>h</mi><mo>)</mo><mo>-</mo><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow><mi>h</mi></mfrac></math></span>
+</p>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>テイラー展開</rb><rt>てぃらーてんかい</rt></ruby></rb><rt><span class="nm-gloss-note">Taylor expansion</span></rt></ruby>：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><msup><mi>e</mi><mi>x</mi></msup><mo>=</mo><munderover><mo>∑</mo><mrow><mi>n</mi><mo>=</mo><mn>0</mn></mrow><mi mathvariant="normal">∞</mi></munderover><mfrac><msup><mi>x</mi><mi>n</mi></msup><mrow><mi>n</mi><mo>!</mo></mrow></mfrac><mo>=</mo><mn>1</mn><mo>+</mo><mi>x</mi><mo>+</mo><mfrac><msup><mi>x</mi><mn>2</mn></msup><mrow><mn>2</mn><mo>!</mo></mrow></mfrac><mo>+</mo><mfrac><msup><mi>x</mi><mn>3</mn></msup><mrow><mn>3</mn><mo>!</mo></mrow></mfrac><mo>+</mo><mo>⋯</mo></math></span>
+</p>
+</section>
+<section class="nm-sec level-3">
+<h3>線形代数</h3>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>行列</rb><rt>ぎょうれつ</rt></ruby></rb><rt><span class="nm-gloss-note">matrix</span></rt></ruby> の<ruby class="nm-ruby"><rb>積</rb><rt>せき</rt></ruby>：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo stretchy="true" form="prefix">(</mo><mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable><mo stretchy="true" form="postfix">)</mo></mrow><mrow><mo stretchy="true" form="prefix">(</mo><mtable><mtr><mtd><mi>x</mi></mtd></mtr><mtr><mtd><mi>y</mi></mtd></mtr></mtable><mo stretchy="true" form="postfix">)</mo></mrow><mo>=</mo><mrow><mo stretchy="true" form="prefix">(</mo><mtable><mtr><mtd><mi>a</mi><mi>x</mi><mo>+</mo><mi>b</mi><mi>y</mi></mtd></mtr><mtr><mtd><mi>c</mi><mi>x</mi><mo>+</mo><mi>d</mi><mi>y</mi></mtd></mtr></mtable><mo stretchy="true" form="postfix">)</mo></mrow></math></span>
+</p>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>固有値</rb><rt>こゆうち</rt></ruby></rb><rt><span class="nm-gloss-note">eigenvalue</span></rt></ruby> <ruby class="nm-ruby"><rb>方程式</rb><rt>ほうていしき</rt></ruby>：<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>A</mi><mi>v</mi><mo>=</mo><mi>λ</mi><mi>v</mi></math></span></p>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>行列式</rb><rt>ぎょうれつしき</rt></ruby></rb><rt><span class="nm-gloss-note">determinant</span></rt></ruby>：<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>det</mi><mo>(</mo><mi>A</mi><mo>)</mo><mo>=</mo><mi>a</mi><mi>d</mi><mo>-</mo><mi>b</mi><mi>c</mi></math></span></p>
+</section>
+<section class="nm-sec level-3">
+<h3>確率・統計</h3>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>正規分布</rb><rt>せいきぶんぷ</rt></ruby></rb><rt><span class="nm-gloss-note">normal distribution</span></rt></ruby> の<ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>確率密度関数</rb><rt>かくりつみつどかんすう</rt></ruby></rb><rt><span class="nm-gloss-note">probability density function</span></rt></ruby>：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><mfrac><mn>1</mn><mrow><mi>σ</mi><msqrt><mrow><mn>2</mn><mi>π</mi></mrow></msqrt></mrow></mfrac><mi>exp</mi><mspace width="-0.16666667em"/><mrow><mo stretchy="true" form="prefix">(</mo><mrow><mo>-</mo><mfrac><mrow><mo>(</mo><mi>x</mi><mo>-</mo><mi>μ</mi><msup><mo>)</mo><mn>2</mn></msup></mrow><mrow><mn>2</mn><msup><mi>σ</mi><mn>2</mn></msup></mrow></mfrac></mrow><mo stretchy="true" form="postfix">)</mo></mrow></math></span>
+</p>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>ベイズの定理</rb><rt>べいずのていり</rt></ruby></rb><rt><span class="nm-gloss-note">Bayes&#39; theorem</span></rt></ruby>：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mi>P</mi><mo>(</mo><mi>A</mi><mo>|</mo><mi>B</mi><mo>)</mo><mo>=</mo><mfrac><mrow><mi>P</mi><mo>(</mo><mi>B</mi><mo>|</mo><mi>A</mi><mo>)</mo><mspace width="0.16666667em"/><mi>P</mi><mo>(</mo><mi>A</mi><mo>)</mo></mrow><mrow><mi>P</mi><mo>(</mo><mi>B</mi><mo>)</mo></mrow></mfrac></math></span>
+</p>
+</section>
+<section class="nm-sec level-3">
+<h3>化学式</h3>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>水</rb><rt>みず</rt></ruby></rb><rt><span class="nm-gloss-note">water</span></rt></ruby>：<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><msub><mtext>H</mtext><mn>2</mn></msub><mtext>O</mtext></math></span></p>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>二酸化炭素</rb><rt>にさんかたんそ</rt></ruby></rb><rt><span class="nm-gloss-note">carbon dioxide</span></rt></ruby>：<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><msub><mtext>CO</mtext><mn>2</mn></msub></math></span></p>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>硫酸</rb><rt>りゅうさん</rt></ruby></rb><rt><span class="nm-gloss-note">sulfuric acid</span></rt></ruby>：<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><msub><mtext>H</mtext><mn>2</mn></msub><msub><mtext>SO</mtext><mn>4</mn></msub></math></span></p>
+<p><ruby class="nm-ruby"><rb>酸化還元反応</rb><rt>さんかかんげんはんのう</rt></ruby>：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mtext>Zn</mtext><mo>+</mo><msub><mtext>H</mtext><mn>2</mn></msub><msub><mtext>SO</mtext><mn>4</mn></msub><mo>→</mo><msub><mtext>ZnSO</mtext><mn>4</mn></msub><mo>+</mo><msub><mtext>H</mtext><mn>2</mn></msub><mo>↑</mo></math></span>
+</p>
+<p><ruby class="nm-ruby"><rb>ゼーベックの法則</rb><rt>ぜーべっくのほうそく</rt></ruby>（熱化学）：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mi mathvariant="normal">Δ</mi><mi>G</mi><mo>=</mo><mi mathvariant="normal">Δ</mi><mi>H</mi><mo>-</mo><mi>T</mi><mi mathvariant="normal">Δ</mi><mi>S</mi></math></span>
+</p>
+</section>
+<section class="nm-sec level-3">
+<h3>電磁気学・物理</h3>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>マクスウェル方程式</rb><rt>まくすうぇるほうていしき</rt></ruby></rb><rt><span class="nm-gloss-note">Maxwell equations</span></rt></ruby>（積分形）：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><msub><mo>∮</mo><mrow><mo mathvariant="italic">∂</mo><mi mathvariant="normal">Ω</mi></mrow></msub><mi>E</mi><mo>·</mo><mi>d</mi><mi>A</mi><mo>=</mo><mfrac><msub><mi>Q</mi><mtext>enc</mtext></msub><msub><mi>ε</mi><mn>0</mn></msub></mfrac></math></span>
+</p>
+<p><ruby class="nm-gloss"><rb><ruby class="nm-ruby"><rb>シュレーディンガー方程式</rb><rt>しゅれーでぃんがーほうていしき</rt></ruby></rb><rt><span class="nm-gloss-note">Schrödinger equation</span></rt></ruby>：</p>
+<p><span class="math-display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mi>i</mi><mi>ℏ</mi><mfrac><mo mathvariant="italic">∂</mo><mrow><mo mathvariant="italic">∂</mo><mi>t</mi></mrow></mfrac><mi mathvariant="normal">Ψ</mi><mo>=</mo><mover><mi>H</mi><mo accent="true">^</mo></mover><mi mathvariant="normal">Ψ</mi></math></span>
+</p>
+</section>
+<hr/>
+</section>
+<section class="nm-sec level-2">
+<h2>引用（Blockquote）</h2>
+<blockquote class="nm-blockquote">
+<p>言語とは<ruby class="nm-ruby"><rb>意味</rb><rt>いみ</rt></ruby>を<ruby class="nm-ruby"><rb>伝</rb><rt>つた</rt></ruby>えるための<ruby class="nm-ruby"><rb>道具</rb><rt>どうぐ</rt></ruby>である。<br/>
+<ruby class="nm-ruby"><rb>構造</rb><rt>こうぞう</rt></ruby><ruby class="nm-ruby"><rb>主義</rb><rt>しゅぎ</rt></ruby>的な<ruby class="nm-ruby"><rb>観点</rb><rt>かんてん</rt></ruby>から見ると、<ruby class="nm-gloss"><rb>言語</rb><rt><span class="nm-gloss-note">language</span></rt></ruby>は<ruby class="nm-gloss"><rb>記号</rb><rt><span class="nm-gloss-note">sign</span></rt></ruby>の<ruby class="nm-ruby"><rb>体系</rb><rt>たいけい</rt></ruby>である。</p>
+</blockquote>
+</section>
+<hr/>
+<section class="nm-sec level-2">
+<h2>画像・メディア</h2>
+<p>!<a href="https://via.placeholder.com/400x200?text=Gloss+Playground">Gloss Parser Logo</a></p>
+</section>
+<hr/>
+<section class="nm-sec level-2">
+<h2>バックスラッシュエスケープ</h2>
+<p>特殊文字のエスケープ：{ [ \ * `</p>
+<p>明示的な改行 — この行の後で改行します：<br/>
+次の行</p>
+</section>
+<hr/>
+<section class="nm-sec level-2">
+<h2><ruby class="nm-ruby"><rb>設計</rb><rt>せっけい</rt></ruby>の<ruby class="nm-ruby"><rb>考</rb><rt>かんが</rt></ruby>え<ruby class="nm-ruby"><rb>方</rb><rt>かた</rt></ruby></h2>
+<section class="nm-sec level-3">
+<h3>なぜ<ruby class="nm-ruby"><rb>拡張</rb><rt>かくちょう</rt></ruby> Markdown か</h3>
+<p>標準 Markdown には以下の<ruby class="nm-ruby"><rb>機能</rb><rt>きのう</rt></ruby>が<ruby class="nm-ruby"><rb>不足</rb><rt>ふそく</rt></ruby>しています：</p>
+<ol>
+<li>日本語の<ruby class="nm-ruby"><rb>振</rb><rt>ふ</rt></ruby>り<ruby class="nm-ruby"><rb>仮名</rb><rt>がな</rt></ruby>（ルビ）</li>
+<li>言語学的グロス標記</li>
+<li><ruby class="nm-ruby"><rb>上記</rb><rt>じょうき</rt></ruby>を<ruby class="nm-ruby"><rb>含</rb><rt>ふく</rt></ruby>むセクション<ruby class="nm-ruby"><rb>階層</rb><rt>かいそう</rt></ruby>の<ruby class="nm-ruby"><rb>明示的</rb><rt>めいじてき</rt></ruby>な<ruby class="nm-ruby"><rb>制御</rb><rt>せいぎょ</rt></ruby></li>
+</ol>
+</section>
+<section class="nm-sec level-3">
+<h3>AST <ruby class="nm-ruby"><rb>駆動</rb><rt>くどう</rt></ruby>パーサー</h3>
+<pre class="nm-code"><code class="">Parser::new(text)
+  → parse_blocks() // ブロック要素
+    → parse_inline() // インライン要素
+      → Event stream
+        → push_html() // HTML 生成
+</code></pre>
+</section>
+</section>
+</section>
+
+</main>
+</body>
+</html>

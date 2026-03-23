@@ -5,6 +5,7 @@ use crate::parser::{Event, Tag, Parser, Alignment};
 pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
     let mut in_thead = false;
     let mut in_gloss = false;
+    let mut gloss_rb_closed = false;
 
     for event in iter {
         match event {
@@ -98,33 +99,23 @@ pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
             // Notes are now emitted as GlossNote events between Start(Gloss) and End(Gloss)
             Event::Start(Tag::Gloss(_)) => {
                 in_gloss = true;
+                gloss_rb_closed = false;
                 out.push_str("<ruby class=\"nm-gloss\"><rb>");
             }
             Event::End(Tag::Gloss(_)) => {
+                if in_gloss && !gloss_rb_closed {
+                    // Empty gloss or no notes? close it anyway
+                    out.push_str("</rb><rt>");
+                }
                 in_gloss = false;
                 out.push_str("</rt></ruby>");
             }
             Event::Start(Tag::GlossNote) => {
-                // Close rb if it hasn't been closed yet (first note),
-                // otherwise just push next span (subsequent notes).
-                // We detect "first note" by whether rt has been opened yet.
-                // Simple approach: track with a second bool.
-                // Instead we check for the </rb> sentinel appended just before.
-                // But string-suffix checks are fragile. Use in_gloss sentinel differently:
-                // Re-purpose: close rb once, then open rt once, before first note.
-                // The flag in_gloss is already set. We add a second flag gloss_rt_open.
-                //
-                // Actually: the simplest correct approach is to always emit </rb><rt>
-                // at the FIRST GlossNote, tracked by a separate flag.
-                // For now detect first note by "not yet seen </rt>" in this gloss.
-                // We trust the parser emits notes sequentially, so we can use
-                // a local counter – but html.rs is purely event-driven.
-                //
-                // Best fix: the parser emits an explicit event to close the base.
-                // For now: the `in_gloss` flag tells us we are inside.
-                // We use a second bool `gloss_rb_closed` initialised to false when
-                // Gloss starts, set to true after first GlossNote closes it.
-                out.push_str("</rb><rt><span class=\"nm-gloss-note\">");
+                if !gloss_rb_closed {
+                    out.push_str("</rb><rt>");
+                    gloss_rb_closed = true;
+                }
+                out.push_str("<span class=\"nm-gloss-note\">");
             }
             Event::End(Tag::GlossNote) => {
                 out.push_str("</span>");

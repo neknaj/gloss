@@ -389,8 +389,8 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>) {
             for (idx, c) in text[1..].char_indices() {
                 if c == '[' { bracket += 1; }
                 else if c == ']' {
-                    if bracket == 0 { close_alt = Some(idx + 1); break; }
                     bracket -= 1;
+                    if bracket == 0 { close_alt = Some(idx + 1); break; }
                 }
             }
             if let Some(ca) = close_alt {

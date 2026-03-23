@@ -1,3 +1,10 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Gloss Markdown Preview</title>
+<style>
 :root {
   --bg: #0b0f19;
   --fg: #e6edf3;
@@ -6,9 +13,6 @@
   --border: #23304a;
   --code: #0f1626;
   --accent: #7aa2f7;
-  --err: #f7768e;
-  --ok: #9ece6a;
-  --math-fg: #d1d5db;
 }
 html, body {
   background: var(--bg);
@@ -18,29 +22,7 @@ html, body {
   margin: 0;
   height: 100vh;
 }
-.container {
-  display: flex;
-  width: 100%;
-  height: 100vh;
-}
-#editor, #preview {
-  flex: 1;
-  padding: 24px;
-  box-sizing: border-box;
-  overflow-y: auto;
-}
-#editor {
-  background: var(--bg);
-  color: var(--fg);
-  border: none;
-  border-right: 1px solid var(--border);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 14px;
-  resize: none;
-}
-#editor:focus {
-  outline: none;
-}
+main { max-width: 980px; margin: 24px auto; padding: 0 16px; }
 a { color: var(--accent); }
 hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 .nm-sec { padding: 0.5em; padding-left: 2em; margin: 1em; border-left: 3px solid var(--border); border-radius: 1em; }
@@ -61,51 +43,29 @@ del { text-decoration: line-through; color: var(--muted); }
 .nm-table th { font-weight: 600; color: var(--accent); }
 .nm-code-container { border: 1px solid var(--border); border-radius: 12px; background: var(--card); margin: 24px 0; overflow: hidden; }
 .nm-code-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.nm-badge-main { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #7aa2f7; color: #1a202e; font-size: 11px; font-weight: bold; letter-spacing: .05em; }
-.nm-badge-flag { display: inline-block; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: var(--muted); font-size: 11px; }
 .nm-code-content { position: relative; }
 .nm-code { background: var(--code); padding: 12px; overflow: auto; margin: 0; border: none; border-radius: 0; }
 .nm-code code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; white-space: pre; }
 .nm-code-inline { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; padding: 1px 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; }
+.nm-gloss, .nm-ruby { ruby-position: over; }
+.nm-gloss rt { font-size: 0.72em; color: var(--muted); line-height: 1.1; }
+.nm-gloss-note { display: block; }
+.math-inline { color: var(--muted); }
+.math-display { display: block; padding: 8px 10px; margin: 8px 0; background: rgba(255,255,255,0.03); border: 1px dashed var(--border); border-radius: 10px; }
+ruby rt { font-size: 0.6em; opacity: 0.95; }
+</style>
+</head>
+<body>
+<main>
+<div class="nm-table-wrap"><table class="nm-table">
+<thead><tr><th style="text-align:left">Col A</th><th style="text-align:right">Col B</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align:left">left</td><td style="text-align:right">right</td></tr>
+<tr><td style="text-align:left">more</td><td style="text-align:right">data</td></tr>
+</tbody>
+</table></div>
 
-/* Unified Ruby and Gloss Styles */
-ruby rt {
-  font-size: 0.65em;
-  color: var(--muted);
-  opacity: 0.9;
-  line-height: 1;
-}
-.nm-ruby { ruby-position: over; }
-.nm-gloss { ruby-position: under; }
-.nm-gloss rt { font-size: 0.65em; } /* Inherits color from rt rule */
-.nm-gloss-note { display: inline; }
-.nm-gloss-note + .nm-gloss-note::before { content: ' / '; opacity: 0.6; }
-
-/* Math Styling */
-.math-inline, .math-display {
-  font-family: "STIX Two Math", serif;
-  color: var(--math-fg);
-  font-variant-numeric: lining-nums tabular-nums;
-  font-feature-settings: "kern" 1, "tnum" 1;
-}
-.math-inline { font-size: 1.1em; }
-.math-display {
-  display: block;
-  padding: 24px;
-  margin: 24px 0;
-  background: rgba(255,255,255,0.015);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow-x: auto;
-  font-size: 1.2em;
-  text-align: center;
-}
-/* Ensure MathML elements use the correct font for stretching */
-math { 
-  font-family: inherit; 
-  font-size: 100%;
-}
-math * { font-family: inherit; }
-mo { font-family: "STIX Two Math", serif; } /* Explicit for operators */
-mfrac { padding: 0 0.1em; }
-mtable { border-spacing: 0.5em; }
+</main>
+</body>
+</html>

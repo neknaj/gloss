@@ -10,6 +10,9 @@ const HTML_HEAD: &str = r#"<!doctype html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Gloss Markdown Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=STIX+Two+Math&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #0b0f19;
@@ -19,6 +22,9 @@ const HTML_HEAD: &str = r#"<!doctype html>
   --border: #23304a;
   --code: #0f1626;
   --accent: #7aa2f7;
+  --err: #f7768e;
+  --ok: #9ece6a;
+  --math-fg: #d1d5db;
 }
 html, body {
   background: var(--bg);
@@ -53,12 +59,37 @@ del { text-decoration: line-through; color: var(--muted); }
 .nm-code { background: var(--code); padding: 12px; overflow: auto; margin: 0; border: none; border-radius: 0; }
 .nm-code code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; white-space: pre; }
 .nm-code-inline { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; padding: 1px 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; }
-.nm-gloss, .nm-ruby { ruby-position: over; }
-.nm-gloss rt { font-size: 0.72em; color: var(--muted); line-height: 1.1; }
-.nm-gloss-note { display: block; }
-.math-inline { color: var(--muted); }
-.math-display { display: block; padding: 8px 10px; margin: 8px 0; background: rgba(255,255,255,0.03); border: 1px dashed var(--border); border-radius: 10px; }
-ruby rt { font-size: 0.6em; opacity: 0.95; }
+
+/* Unified Ruby and Gloss Styles */
+ruby rt {
+  font-size: 0.65em;
+  color: var(--muted);
+  opacity: 0.9;
+  line-height: 1;
+}
+.nm-ruby { ruby-position: over; }
+.nm-gloss { ruby-position: under; }
+.nm-gloss rt { font-size: 0.65em; }
+.nm-gloss-note { display: inline; }
+.nm-gloss-note + .nm-gloss-note::before { content: ' / '; opacity: 0.6; }
+
+/* Math Styling */
+.math-inline, .math-display {
+  font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", serif;
+  color: var(--math-fg);
+}
+.math-inline { font-size: 1.05em; }
+.math-display {
+  display: block;
+  padding: 16px;
+  margin: 16px 0;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: 1.1em;
+}
+math { font-family: inherit; }
 </style>
 </head>
 <body>
