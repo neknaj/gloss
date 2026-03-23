@@ -1,0 +1,42 @@
+   Compiling src-core v0.1.0 (D:\project\gloss\src-core)
+warning: unused import: `ToString`
+ --> src-core\src\parser.rs:1:29
+  |
+1 | use alloc::string::{String, ToString};
+  |                             ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unreachable pattern
+  --> src-core\src\parser.rs:88:13
+   |
+81 |             '\u{30A0}'..='\u{30FF}' | // Katakana
+   |             ----------------------- matches all the relevant values
+...
+88 |             '\u{30FC}' |              // Katakana-Hiragana prolonged sound mark ー
+   |             ^^^^^^^^^^ no value can reach this
+   |
+   = note: `#[warn(unreachable_patterns)]` on by default
+
+warning: unreachable pattern
+  --> src-core\src\parser.rs:89:13
+   |
+84 |             '\u{3000}'..='\u{303F}' | // CJK Symbols and Punctuation
+   |             ----------------------- matches all the relevant values
+...
+89 |             '\u{3005}' |              // 々 iteration mark
+   |             ^^^^^^^^^^ no value can reach this
+
+warning: unreachable pattern
+  --> src-core\src\parser.rs:90:13
+   |
+81 |             '\u{30A0}'..='\u{30FF}' | // Katakana
+   |             ----------------------- matches all the relevant values
+...
+90 |             '\u{30FB}' |              // ・
+   |             ^^^^^^^^^^ no value can reach this
+
+warning: `src-core` (lib) generated 4 warnings (run `cargo fix --lib -p src-core` to apply 1 suggestion)
+   Compiling src-cli v0.1.0 (D:\project\gloss\src-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.17s
+     Running `target\debug\src-cli.exe web-playground/sample.n.md`

@@ -72,6 +72,35 @@ fn contains_kanji(s: &str) -> bool {
     s.chars().any(is_kanji)
 }
 
+/// Returns true if the string contains only Hiragana, Katakana, Bopomofo, Japanese/CJK punctuation,
+/// and common CJK iteration/extension marks — i.e. no Kanji, no Latin, no Arabic numerals.
+fn is_purely_kana_or_punct(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| {
+        matches!(c,
+            '\u{3040}'..='\u{309F}' | // Hiragana
+            '\u{30A0}'..='\u{30FF}' | // Katakana
+            '\u{31F0}'..='\u{31FF}' | // Katakana phonetic extensions
+            '\u{FF65}'..='\u{FF9F}' | // Half-width Katakana
+            '\u{3000}'..='\u{303F}' | // CJK Symbols and Punctuation
+            '\u{FE30}'..='\u{FE4F}' | // CJK Compatibility Forms
+            '\u{FF00}'..='\u{FF60}' | // Fullwidth Latin / punctuation
+            '\u{FFE0}'..='\u{FFE6}' | // Fullwidth currency/signs
+            '\u{30FC}' |              // Katakana-Hiragana prolonged sound mark ー
+            '\u{3005}' |              // 々 iteration mark
+            '\u{30FB}' |              // ・
+            // Bopomofo (注音符号 / Zhuyin) — used in Taiwanese Mandarin ruby
+            '\u{02CA}' |              // ˊ second tone
+            '\u{02C7}' |              // ˇ third tone
+            '\u{02CB}' |              // ˋ fourth tone
+            '\u{02D9}' |              // ˙ neutral tone
+            '\u{31A0}'..='\u{31BF}' | // Bopomofo Extended
+            '\u{02EA}'..='\u{02EB}' | // Modifier letter yin/yang departing tones
+            '\u{3100}'..='\u{312F}' | // Bopomofo (ㄅ—ㄩ range)
+            ' '                       // regular space (for multi-syllable annotations)
+        )
+    })
+}
+
 impl<'a> Iterator for Parser<'a> {
     type Item = Event<'a>;
     fn next(&mut self) -> Option<Self::Item> {
@@ -501,6 +530,15 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                 if parts.len() >= 2 {
                     let base = parts[0];
                     let notes = &parts[1..];
+                    
+                    // Detect Ruby vs Gloss confusion:
+                    // {漢字/かんじ} with single purely-kana note → likely should be [漢字/かんじ]
+                    if notes.len() == 1 && contains_kanji(base) && is_purely_kana_or_punct(notes[0]) {
+                        warnings.push(format!(
+                            "Gloss '{{{}/ {}}}' looks like a Ruby reading. Did you mean '[{}/{}]'?",
+                            base, notes[0], base, notes[0]
+                        ));
+                    }
                     // Emit: Start(Gloss), Start(GlossBase implied by rb in html), parse base,
                     // then for each note: Start(GlossNote), parse note, End(GlossNote)
                     // We keep Gloss(Vec) for the End event for html.rs symmetry
