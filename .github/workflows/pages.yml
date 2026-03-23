@@ -38,14 +38,12 @@ jobs:
           version: 'latest'
 
       - name: Build web-playground
-        run: |
-          cd web-playground
-          trunk build --release --public-url /gloss/
+        run: trunk build --release --public-url /gloss/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./web-playground/dist
+          path: ./dist
 
   deploy:
     environment:
