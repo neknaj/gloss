@@ -142,6 +142,23 @@ fn contains_kanji(s: &str) -> bool {
     s.chars().any(is_kanji)
 }
 
+/// Returns true if every character is katakana (full-width, half-width, or extensions).
+fn is_purely_katakana(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| matches!(c,
+        '\u{30A0}'..='\u{30FF}' | // Katakana (includes ー U+30FC, ・ U+30FB)
+        '\u{31F0}'..='\u{31FF}' | // Katakana phonetic extensions
+        '\u{FF65}'..='\u{FF9F}'   // Half-width Katakana
+    ))
+}
+
+/// Returns true if every character is hiragana (or the shared long-vowel mark ー).
+fn is_purely_hiragana(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| matches!(c,
+        '\u{3040}'..='\u{309F}' | // Hiragana
+        '\u{30FC}'               // KATAKANA-HIRAGANA PROLONGED SOUND MARK (ー)
+    ))
+}
+
 /// Returns true if the string consists of phonetic/reading scripts:
 /// Hiragana, Katakana, Bopomofo, Hangul, or Vietnamese-specific Latin.
 fn is_purely_kana_or_punct(s: &str) -> bool {
@@ -632,6 +649,13 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                 if let Some(slash) = slash_idx {
                     let base = &content[..slash];
                     let ruby = &content[slash + 1..];
+                    if is_purely_katakana(base) && is_purely_hiragana(ruby) {
+                        warnings.push(format!(
+                            "Ruby '[{}/{}]': katakana base with hiragana reading. \
+                             Katakana is already phonetic; use romanization or the original script instead.",
+                            base, ruby
+                        ));
+                    }
                     events.push(Event::Start(Tag::Ruby(ruby)));
                     parse_inline(base, events, warnings, true, fn_defs, fn_refs);
                     events.push(Event::End(Tag::Ruby(ruby)));

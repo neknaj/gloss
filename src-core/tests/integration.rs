@@ -164,6 +164,26 @@ fn test_footnote_warn_unused_def() {
 }
 
 #[test]
+fn test_ruby_katakana_hiragana_warn() {
+    // Purely katakana base + hiragana reading → warning
+    let (_, warnings) = render_with_warnings("[インド/いんど]");
+    assert!(
+        warnings.iter().any(|w| w.contains("インド") && w.contains("katakana")),
+        "expected katakana-hiragana ruby warning: {warnings:?}"
+    );
+}
+
+#[test]
+fn test_ruby_kanji_katakana_no_warn() {
+    // Kanji + katakana mixed base → NOT purely katakana → no warning
+    let (_, warnings) = render_with_warnings("[自由エネルギー/じゆうえねるぎー]");
+    assert!(
+        !warnings.iter().any(|w| w.contains("katakana")),
+        "should not warn for kanji+katakana base: {warnings:?}"
+    );
+}
+
+#[test]
 fn test_blockquote() {
     assert_eq!(
         render("> quote\n> line 2"),
