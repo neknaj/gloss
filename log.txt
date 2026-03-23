@@ -1,14 +1,53 @@
-2026-03-22T22:58:42.458007Z  INFO Starting trunk 0.20.3
-2026-03-22T22:58:42.458066Z DEBUG Spawning update check
-2026-03-22T22:58:42.458554Z DEBUG Performing update check
-2026-03-22T22:58:42.459093Z DEBUG Enforce version - actual: 0.20.3, required: *
-2026-03-22T22:58:42.459171Z  INFO starting build
-2026-03-22T22:58:42.460278Z DEBUG spawning asset pipelines
-2026-03-22T22:58:42.463080Z DEBUG Time since last check: 28d11h33m1s334ms25µs300ns
-2026-03-22T22:58:42.463109Z DEBUG Checking for updates
-2026-03-22T22:58:42.585500Z ERROR error
-error from build pipeline
+warning: unused imports: `String` and `ToString`
+ --> src-core\src\parser.rs:1:21
+  |
+1 | use alloc::string::{String, ToString};
+  |                     ^^^^^^  ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
 
-Caused by:
-    unknown <link data-trunk .../> attr value `rel="stylesheet"`; please ensure the value is lowercase and is a supported asset type
-2026-03-22T22:58:42.585541Z ERROR error from build pipeline
+warning: `src-core` (lib) generated 1 warning (run `cargo fix --lib -p src-core` to apply 1 suggestion)
+warning: `src-core` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src\main.rs (target\debug\deps\src_cli-ffc2c2eb4cc47c75.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\src_core-945c101bc51f2b44.exe)
+
+running 1 test
+test tests::test_parser ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\integration.rs (target\debug\deps\integration-c2d77de9fa99acaf.exe)
+
+running 8 tests
+test test_code_fence ... ok
+test test_blockquote ... ok
+test test_gloss ... ok
+test test_gloss_multi ... ok
+test test_ruby ... ok
+test test_table ... ok
+test test_section_nesting ... FAILED
+test test_inline_formats ... ok
+
+failures:
+
+---- test_section_nesting stdout ----
+
+thread 'test_section_nesting' panicked at src-core\tests\integration.rs:48:5:
+assertion `left == right` failed
+  left: "<section class=\"nm-sec level-1\">\n<h1>H1</h1>\n<section class=\"nm-sec level-2\">\n<h2>H2</h2>\n<p>text</p>\n</section>\n<hr/>\n</section>"
+ right: "<section class=\"nm-sec level-1\">\n<h1>H1</h1>\n<section class=\"nm-sec level-2\">\n<h2>H2</h2>\n<p>text</p>\n<hr/>\n</section>\n</section>"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    test_section_nesting
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p src-core --test integration`

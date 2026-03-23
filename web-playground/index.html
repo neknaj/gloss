@@ -7,8 +7,40 @@
     <link rel="css" href="src/style.css" data-trunk>
     <link data-trunk rel="rust" href="../src-web/Cargo.toml" data-wasm-opt="0" />
     <link data-trunk rel="copy-file" href="sample.n.md" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <style>
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #121a2a;
+            padding: 8px 16px;
+            border-bottom: 1px solid #23304a;
+        }
+        .header-controls label {
+            color: #e6edf3;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        /* Make the container take remaining height */
+        body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .container { flex: 1; display: flex; overflow: hidden; }
+        #editor, #preview { flex: 1; overflow: auto; padding: 16px; margin: 0; border: none; }
+        #preview { background: #0b0f19; }
+        #editor { background: #121a2a; color: #e6edf3; border-right: 1px solid #23304a; resize: none; font-family: monospace; font-size: 14px; }
+    </style>
 </head>
 <body>
+    <div class="header-controls">
+        <strong style="color: #7aa2f7;">Gloss Playground</strong>
+        <label>
+            <input type="checkbox" id="use-katex" checked> Enable KaTeX
+        </label>
+    </div>
     <div class="container">
         <textarea id="editor" placeholder="Write gloss markdown here..."></textarea>
         <div id="preview"></div>
@@ -17,21 +49,46 @@
         // After WASM initialises, it fires 'wasm-ready'.
         // We then fetch the sample, populate the editor and trigger an initial render.
         window.addEventListener('wasm-ready', () => {
+            console.log('[JS] wasm-ready fired');
             fetch('sample.n.md')
                 .then(r => r.text())
                 .then(text => {
                     const editor = document.getElementById('editor');
-                    const preview = document.getElementById('preview');
                     editor.value = text;
-                    // render via the exported WASM function
-                    if (typeof render_markdown === 'function') {
-                        preview.innerHTML = render_markdown(text);
-                    } else {
-                        // fallback: trigger input event to use the closure-based renderer
-                        editor.dispatchEvent(new Event('input'));
-                    }
+                    editor.dispatchEvent(new Event('input'));
                 })
                 .catch(err => console.warn('Could not load sample.n.md:', err));
+        });
+
+        // When the user typers or toggle changes, the WASM input listener fires
+        // synchronously and sets preview.innerHTML. Then we hook onto input and typeset.
+        const preview = document.getElementById('preview');
+        const editor = document.getElementById('editor');
+        editor.addEventListener('input', () => {
+            // Defer KaTeX rendering to ensure WASM has updated the DOM first
+            setTimeout(() => {
+                const useKaTeX = document.getElementById('use-katex').checked;
+                if (useKaTeX && window.katex) {
+                    preview.querySelectorAll('.math-inline, .math-display').forEach(el => {
+                        const texSpan = el.querySelector('.math-tex');
+                        if (texSpan) {
+                            try {
+                                katex.render(texSpan.textContent, el, {
+                                    displayMode: el.classList.contains('math-display'),
+                                    throwOnError: false
+                                });
+                            } catch(e) {
+                                console.error('[JS] KaTeX render error:', e);
+                            }
+                        }
+                    });
+                }
+            }, 20);
+        });
+
+        // Handle toggle changes
+        document.getElementById('use-katex').addEventListener('change', () => {
+            editor.dispatchEvent(new Event('input')); // Force re-render from WASM to reset or apply KaTeX
         });
     </script>
 </body>

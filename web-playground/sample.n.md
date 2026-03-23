@@ -129,31 +129,47 @@ $$f(x) = \frac{1}{\sigma\sqrt{2\pi}} \exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\ri
 
 $$P(A|B) = \frac{P(B|A)\,P(A)}{P(B)}$$
 
-### 化学式
+### ベクトル解析・微分幾何学
+
+ストークスの定理（Stokes' theorem）：
+
+$$\iint_{\Sigma} (\nabla \times \mathbf{F}) \cdot d\mathbf{\Sigma} = \oint_{\partial\Sigma} \mathbf{F} \cdot d\mathbf{r}$$
+
+アインシュタイン方程式（一般相対性理論）：
+
+$$G_{\mu\nu} + \Lambda g_{\mu\nu} = \frac{8\pi G}{c^4} T_{\mu\nu}$$
+
+### 代数学・圏論
+
+同型写像（Isomorphism）による分解予想：
+
+$$A \cong B \times C \implies \dim(A) = \dim(B) + \dim(C)$$
+
+関手（Functor）による可換図式の合成代数：
+
+$$F(g \circ f) = F(g) \circ F(f)$$
+
+### 化学・物理体系
 
 {[水/みず]/water}：$\text{H}_2\text{O}$
 
 {[二酸化炭素/にさんかたんそ]/carbon dioxide}：$\text{CO}_2$
 
-{[硫酸/りゅうさん]/sulfuric acid}：$\text{H}_2\text{SO}_4$
-
 [酸化還元反応/さんかかんげんはんのう]：
 
 $$\text{Zn} + \text{H}_2\text{SO}_4 \to \text{ZnSO}_4 + \text{H}_2\uparrow$$
 
-ゼーベックの[法則/ほうそく]（熱化学）：
+ゼーベックの[法則/ほうそく]（熱力学）：
 
 $$\Delta G = \Delta H - T\Delta S$$
 
-{[物理/ぶつり]/physics}：
-
 {[マクスウェル方程式/まくすうぇるほうていしき]/Maxwell equations}（積分形）：
 
-$$\oint_{\partial \Omega} E \cdot dA = \frac{Q_{\text{enc}}}{\varepsilon_0}$$
+$$\oint_{\partial \Omega} \mathbf{E} \cdot d\mathbf{S} = \frac{1}{\varepsilon_0} \iiint_{\Omega} \rho \, dV$$
 
 {[シュレーディンガー方程式/しゅれーでぃんがーほうていしき]/Schrödinger equation}：
 
-$$i\hbar\frac{\partial}{\partial t}\Psi = \hat{H}\Psi$$
+$$i\hbar\frac{\partial}{\partial t}\Psi(\mathbf{r},t) = \left[ -\frac{\hbar^2}{2m}\nabla^2 + V(\mathbf{r},t) \right] \Psi(\mathbf{r},t)$$
 
 ---
 

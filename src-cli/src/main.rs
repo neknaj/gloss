@@ -75,8 +75,24 @@ ruby rt {
   background: rgba(255,255,255,0.03);
   border: 1px dashed var(--border);
   border-radius: 10px;
+  overflow-x: auto;
 }
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  document.querySelectorAll('.math-inline, .math-display').forEach(function(el) {
+    var texSpan = el.querySelector('.math-tex');
+    if (texSpan) {
+      katex.render(texSpan.textContent, el, {
+        displayMode: el.classList.contains('math-display'),
+        throwOnError: false
+      });
+    }
+  });
+});
+</script>
 </head>
 <body>
 <main>

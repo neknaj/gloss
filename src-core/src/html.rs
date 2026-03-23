@@ -16,12 +16,12 @@ pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
             Event::MathDisplay(m) => {
                 let mathml = latex2mathml::latex_to_mathml(m, latex2mathml::DisplayStyle::Block)
                     .unwrap_or_else(|_| escape_html(m).to_string());
-                out.push_str(&format!("<span class=\"math-display\">{}</span>\n", mathml));
+                out.push_str(&format!("<span class=\"math-display\"><span class=\"native-mathml\">{}</span><span class=\"math-tex\" style=\"display:none\">{}</span></span>\n", mathml, escape_html(m)));
             }
             Event::MathInline(m) => {
                 let mathml = latex2mathml::latex_to_mathml(m, latex2mathml::DisplayStyle::Inline)
                     .unwrap_or_else(|_| escape_html(m).to_string());
-                out.push_str(&format!("<span class=\"math-inline\">{}</span>", mathml));
+                out.push_str(&format!("<span class=\"math-inline\"><span class=\"native-mathml\">{}</span><span class=\"math-tex\" style=\"display:none\">{}</span></span>", mathml, escape_html(m)));
             }
             Event::Start(Tag::Paragraph) => out.push_str("<p>"),
             Event::End(Tag::Paragraph) => out.push_str("</p>\n"),
