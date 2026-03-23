@@ -8,7 +8,6 @@
   --accent: #7aa2f7;
   --err: #f7768e;
   --ok: #9ece6a;
-  --math-fg: #d1d5db;
 }
 html, body {
   background: var(--bg);
@@ -82,30 +81,12 @@ ruby rt {
 .nm-gloss-note + .nm-gloss-note::before { content: ' / '; opacity: 0.6; }
 
 /* Math Styling */
-.math-inline, .math-display {
-  font-family: "STIX Two Math", serif;
-  color: var(--math-fg);
-  font-variant-numeric: lining-nums tabular-nums;
-  font-feature-settings: "kern" 1, "tnum" 1;
-}
-.math-inline { font-size: 1.1em; }
+.math-inline { color: var(--muted); }
 .math-display {
   display: block;
-  padding: 24px;
-  margin: 24px 0;
-  background: rgba(255,255,255,0.015);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow-x: auto;
-  font-size: 1.2em;
-  text-align: center;
+  padding: 8px 10px;
+  margin: 8px 0;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
 }
-/* Ensure MathML elements use the correct font for stretching */
-math { 
-  font-family: inherit; 
-  font-size: 100%;
-}
-math * { font-family: inherit; }
-mo { font-family: "STIX Two Math", serif; } /* Explicit for operators */
-mfrac { padding: 0 0.1em; }
-mtable { border-spacing: 0.5em; }

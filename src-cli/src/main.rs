@@ -10,9 +10,6 @@ const HTML_HEAD: &str = r#"<!doctype html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Gloss Markdown Preview</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=STIX+Two+Math&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #0b0f19;
@@ -22,9 +19,6 @@ const HTML_HEAD: &str = r#"<!doctype html>
   --border: #23304a;
   --code: #0f1626;
   --accent: #7aa2f7;
-  --err: #f7768e;
-  --ok: #9ece6a;
-  --math-fg: #d1d5db;
 }
 html, body {
   background: var(--bg);
@@ -73,23 +67,15 @@ ruby rt {
 .nm-gloss-note { display: inline; }
 .nm-gloss-note + .nm-gloss-note::before { content: ' / '; opacity: 0.6; }
 
-/* Math Styling */
-.math-inline, .math-display {
-  font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", serif;
-  color: var(--math-fg);
-}
-.math-inline { font-size: 1.05em; }
+.math-inline { color: var(--muted); }
 .math-display {
   display: block;
-  padding: 16px;
-  margin: 16px 0;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow-x: auto;
-  font-size: 1.1em;
+  padding: 8px 10px;
+  margin: 8px 0;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
 }
-math { font-family: inherit; }
 </style>
 </head>
 <body>
