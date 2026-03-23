@@ -2,14 +2,37 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Gloss Playground</title>
     <link rel="css" href="src/style.css" data-trunk>
     <link data-trunk rel="rust" href="../src-web/Cargo.toml" data-wasm-opt="0" />
+    <link data-trunk rel="copy-file" href="sample.n.md" />
 </head>
 <body>
     <div class="container">
         <textarea id="editor" placeholder="Write gloss markdown here..."></textarea>
         <div id="preview"></div>
     </div>
+    <script>
+        // After WASM initialises, it fires 'wasm-ready'.
+        // We then fetch the sample, populate the editor and trigger an initial render.
+        window.addEventListener('wasm-ready', () => {
+            fetch('sample.n.md')
+                .then(r => r.text())
+                .then(text => {
+                    const editor = document.getElementById('editor');
+                    const preview = document.getElementById('preview');
+                    editor.value = text;
+                    // render via the exported WASM function
+                    if (typeof render_markdown === 'function') {
+                        preview.innerHTML = render_markdown(text);
+                    } else {
+                        // fallback: trigger input event to use the closure-based renderer
+                        editor.dispatchEvent(new Event('input'));
+                    }
+                })
+                .catch(err => console.warn('Could not load sample.n.md:', err));
+        });
+    </script>
 </body>
 </html>
