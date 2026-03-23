@@ -464,7 +464,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
     }
 }
 
-fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &mut Vec<String>, in_ruby: bool, fn_defs: &[(&'a str, &'a str)], fn_refs: &mut Vec<&'a str>) {
+fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &mut Vec<String>, in_annotation: bool, fn_defs: &[(&'a str, &'a str)], fn_refs: &mut Vec<&'a str>) {
     while !text.is_empty() {
         // $$ math display
         if text.starts_with("$$") {
@@ -500,7 +500,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
         if text.starts_with("~~") {
             if let Some(end) = text[2..].find("~~") {
                 events.push(Event::Start(Tag::Strikethrough));
-                parse_inline(&text[2..2 + end], events, warnings, in_ruby, fn_defs, fn_refs);
+                parse_inline(&text[2..2 + end], events, warnings, in_annotation, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Strikethrough));
                 text = &text[2 + end + 2..];
                 continue;
@@ -510,7 +510,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
         if text.starts_with("**") {
             if let Some(end) = text[2..].find("**") {
                 events.push(Event::Start(Tag::Strong));
-                parse_inline(&text[2..2 + end], events, warnings, in_ruby, fn_defs, fn_refs);
+                parse_inline(&text[2..2 + end], events, warnings, in_annotation, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Strong));
                 text = &text[2 + end + 2..];
                 continue;
@@ -520,7 +520,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
         if text.starts_with('*') && !text.starts_with("**") {
             if let Some(end) = text[1..].find('*') {
                 events.push(Event::Start(Tag::Emphasis));
-                parse_inline(&text[1..1 + end], events, warnings, in_ruby, fn_defs, fn_refs);
+                parse_inline(&text[1..1 + end], events, warnings, in_annotation, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Emphasis));
                 text = &text[1 + end + 1..];
                 continue;
@@ -612,7 +612,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                         let close_paren = cb + 2 + cp;
                         let href = &text[cb + 2..close_paren];
                         events.push(Event::Start(Tag::Link(href)));
-                        parse_inline(content, events, warnings, in_ruby, fn_defs, fn_refs);
+                        parse_inline(content, events, warnings, in_annotation, fn_defs, fn_refs);
                         events.push(Event::End(Tag::Link(href)));
                         text = &text[close_paren + 1..];
                         continue;
@@ -632,11 +632,6 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                 if let Some(slash) = slash_idx {
                     let base = &content[..slash];
                     let ruby = &content[slash + 1..];
-                    
-                    if let Some(c) = base.chars().find(|&c| !is_kanji(c)) {
-                        warnings.push(format!("Ruby is applied to a non-Kanji character '{}' in '[{}/{}]'.", c, base, ruby));
-                    }
-                    
                     events.push(Event::Start(Tag::Ruby(ruby)));
                     parse_inline(base, events, warnings, true, fn_defs, fn_refs);
                     events.push(Event::End(Tag::Ruby(ruby)));
@@ -701,10 +696,10 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                     // We keep Gloss(Vec) for the End event for html.rs symmetry
                     let notes_owned: Vec<&str> = notes.to_vec();
                     events.push(Event::Start(Tag::Gloss(notes_owned.clone())));
-                    parse_inline(base, events, warnings, false, fn_defs, fn_refs);
+                    parse_inline(base, events, warnings, true, fn_defs, fn_refs);
                     for note in notes_owned.iter() {
                         events.push(Event::Start(Tag::GlossNote));
-                        parse_inline(note, events, warnings, false, fn_defs, fn_refs);
+                        parse_inline(note, events, warnings, true, fn_defs, fn_refs);
                         events.push(Event::End(Tag::GlossNote));
                     }
                     events.push(Event::End(Tag::Gloss(notes_owned)));
@@ -724,14 +719,14 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
             let len = ch.len_utf8();
             let t = &text[..len];
             events.push(Event::Text(t));
-            if !in_ruby && contains_kanji(t) {
+            if !in_annotation && contains_kanji(t) {
                 warnings.push(format!("Kanji without ruby found in text: '{}'", t.trim()));
             }
             text = &text[len..];
         } else {
             let t = &text[..next_special];
             events.push(Event::Text(t));
-            if !in_ruby && contains_kanji(t) {
+            if !in_annotation && contains_kanji(t) {
                 warnings.push(format!("Kanji without ruby found in text: '{}'", t.trim()));
             }
             text = &text[next_special..];
