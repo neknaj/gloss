@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-A Rust library and toolchain for a custom Markdown dialect called **Gloss** that adds ruby annotation and multilingual gloss notation to standard Markdown:
+A Rust library and toolchain for a custom Markdown dialect called **Gloss** that adds ruby annotation and multilingual anno notation to standard Markdown:
 
 - `[漢字/かんじ]` — ruby (furigana/phonetic annotation above text)
-- `{用語/gloss}` or `{word/lang1/lang2}` — gloss (interlinear annotation below text)
-- `$...$` / `$$...$$` — math (KaTeX; brackets inside are not parsed as ruby/gloss)
+- `{用語/anno}` or `{word/lang1/lang2}` — anno (annotation below text; translation, grammar, classification, etc.)
+- `$...$` / `$$...$$` — math (KaTeX; brackets inside are not parsed as ruby/anno)
 - Input files conventionally use `.n.md` extension
 
 ## Workspace Structure

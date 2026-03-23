@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Gloss Playground</title>
+    <!-- OGP -->
+    <meta property="og:title" content="Gloss Playground">
+    <meta property="og:description" content="Ruby（ルビ）・Anno（注釈）・数式に対応した拡張 Markdown をリアルタイムでレンダリングするウェブ版プレイグラウンドです。">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Gloss Playground">
+    <meta name="twitter:description" content="Ruby（ルビ）・Anno（注釈）・数式に対応した拡張 Markdown をリアルタイムでレンダリングするウェブ版プレイグラウンドです。">
     <link rel="css" href="src/style.css" data-trunk>
     <link data-trunk rel="rust" href="../src-web/Cargo.toml" data-wasm-opt="0" />
     <link data-trunk rel="copy-file" href="sample.n.md" />
@@ -112,12 +119,12 @@
         #preview .math-inline {
             color: inherit;
         }
-        /* 2. Ruby & Gloss: only annotations (rt) are thinner/lighter */
-        #preview .nm-ruby rb, #preview .nm-gloss rb {
+        /* 2. Ruby & Anno: only annotations (rt) are thinner/lighter */
+        #preview .nm-ruby rb, #preview .nm-anno rb {
             opacity: 1;
             font-weight: inherit;
         }
-        #preview .nm-ruby rt, #preview .nm-gloss rt {
+        #preview .nm-ruby rt, #preview .nm-anno rt {
             color: inherit;
             opacity: 0.8;
             font-weight: 300;
@@ -165,7 +172,7 @@
         </div>
     </div>
     <div class="container">
-        <textarea id="editor" placeholder="Write gloss markdown here..."></textarea>
+        <textarea id="editor" placeholder="Write Gloss Markdown here..."></textarea>
         <div id="preview"></div>
     </div>
     <script>

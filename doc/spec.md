@@ -1,15 +1,15 @@
 # Gloss Markup Specification (Draft v0.1)
 
 この文書は、Gloss 記法（`[base/reading]` と `{line1/line2/...}`）および `$...$` / `$$...$$` による数式区間を、**パーサーが生成する構文木（AST）**まで含めて定義する仕様書です。  
-本仕様は README に記載された「多言語（複数行）」「Gloss の下段でも Ruby を使う」例を **そのまま実現できる**ことを要件として策定します。
+本仕様は README に記載された「多言語（複数行）」「Anno の下段でも Ruby を使う」例を **そのまま実現できる**ことを要件として策定します。
 
 ---
 
 ## 1. 目的
 
 - **Ruby**: ルビ（発音・転写・注釈）を簡潔に書く（例: `[漢字/かんじ]`）。
-- **Gloss**: 上段本文（表示の主文字列）に対し、下段に 1 行以上の別表記（英語・転写・別言語など）を添える（例: `{微分係数/derivative}`、`{佛罗伦萨/Firenze/Florence}`）。
-- **Math**: `$...$` / `$$...$$` を「数式区間」として扱い、区間内部の `[]` `{}` `/` が Gloss/Ruby と誤解釈されないようにする。
+- **Anno**: 上段本文（表示の主文字列）に対し、下段に 1 行以上の別表記（英語・転写・別言語など）を添える（例: `{微分係数/derivative}`、`{佛罗伦萨/Firenze/Florence}`）。
+- **Math**: `$...$` / `$$...$$` を「数式区間」として扱い、区間内部の `[]` `{}` `/` が Anno/Ruby と誤解釈されないようにする。
 
 > 注: KaTeX などの auto-render を使う場合、利用環境によっては `$...$` を delimiters に追加設定する必要がある。
 
@@ -20,7 +20,7 @@
 - **Input**: UTF-8 のテキスト（1 行でも複数行でもよい）
 - **Segment**: Input を分割した最小の意味単位（AST のノード）
 - **Ruby Block**: `[...]` の構文要素
-- **Gloss Block**: `{...}` の構文要素
+- **Anno Block**: `{...}` の構文要素
 - **Math Segment**: `$...$` または `$$...$$` による数式区間
 
 ---
@@ -36,13 +36,13 @@
 - **Ruby**
     - `base: InlineSegment[]`
     - `reading: String`
-- **Gloss**
-    - `lines: GlossLine[]`
+- **Anno**
+    - `lines: AnnoLine[]`
 - **Math**
     - `tex: String`
     - `display: bool`（`$$...$$` = true, `$...$` = false）
 
-> 注: Gloss は `lines` により「上段＋下段（多段）」を統一表現する。`lines[0]` が上段本文、`lines[1..]` が下段の注記行である。
+> 注: Anno は `lines` により「上段＋下段（多段）」を統一表現する。`lines[0]` が上段本文、`lines[1..]` が下段の注記行である。
 
 ### 3.2 InlineSegment 型（Ruby base 内）
 
@@ -52,13 +52,13 @@
     - `tex: String`
     - `display: bool`
 
-### 3.3 GlossLine 型（Gloss の各行）
+### 3.3 AnnoLine 型（Anno の各行）
 
-Gloss の各行は「本文的に表示されるテキスト」なので、Ruby と Math を含められる。
+Anno の各行は「本文的に表示されるテキスト」なので、Ruby と Math を含められる。
 
-- `segments: GlossInlineSegment[]`
+- `segments: AnnoInlineSegment[]`
 
-### 3.4 GlossInlineSegment 型（Gloss 行内）
+### 3.4 AnnoInlineSegment 型（Anno 行内）
 
 - **Plain**
 - **Ruby**
@@ -79,18 +79,18 @@ Gloss の各行は「本文的に表示されるテキスト」なので、Ruby 
 `\`（バックスラッシュ）に続く文字が「特別文字」または `\` のとき、直後 1 文字は **構文文字ではなく通常文字**として扱う。
 
 - 例: `\[` は「`[`」として扱う（Ruby の開始ではない）
-- 例: `\{` は「`{`」として扱う（Gloss の開始ではない）
-- 例: `\/` は「`/`」として扱う（Gloss/Ruby の区切りではない）
+- 例: `\{` は「`{`」として扱う（Anno の開始ではない）
+- 例: `\/` は「`/`」として扱う（Anno/Ruby の区切りではない）
 
 ### 4.3 エスケープの“除去”（規範）
 
-- **Plain.text / Ruby.reading / Gloss の Plain**: エスケープは **除去して格納**する  
+- **Plain.text / Ruby.reading / Anno の Plain**: エスケープは **除去して格納**する  
   例: 入力 `\[` → AST では `"["`
 - **Math.tex**: delimiters（`$` / `$$`）は除去するが、`tex` 本体は **入力のまま格納**する（`\` を含む TeX を保持する）
 
 ### 4.4 `$` の扱い
 
-- Ruby/Gloss の字句解析における「特別文字」は §4.1 の 5 文字（＋`\`）である。
+- Ruby/Anno の字句解析における「特別文字」は §4.1 の 5 文字（＋`\`）である。
 - **Math スキャナ**は `$` と `$$` を特別扱いする（§7）。
 - `\$` は「リテラル `$`」として扱える（§7.3）。
 
@@ -120,12 +120,12 @@ RubyBlock := '[' RubyBase '/' RubyReading ']'
 
 - RubyBase は **InlineSegment（Plain/Math）**として保持する。
 - RubyBase 内の `$...$` / `$$...$$` は **Inline Math** として解釈してよい。
-- RubyBase 内では **GlossBlock は解釈しない**（`{...}` は通常文字として扱う）。
+- RubyBase 内では **AnnoBlock は解釈しない**（`{...}` は通常文字として扱う）。
 
 ### 5.4 RubyReading（規範）
 
 - RubyReading は **生文字列**（String）として保持する（§4.3 のエスケープ除去は適用する）。
-- RubyReading 内では **Gloss/Ruby/Math の再帰解析を行わない**。
+- RubyReading 内では **Anno/Ruby/Math の再帰解析を行わない**。
 
 ### 5.5 禁止事項（規範）
 
@@ -136,23 +136,23 @@ RubyBlock := '[' RubyBase '/' RubyReading ']'
 
 ---
 
-## 6. Gloss Block（`{line1/line2/...}`）
+## 6. Anno Block（`{line1/line2/...}` (anno)）
 
-Gloss は、「上段本文（line1）」と「下段の別表記行（line2 以降）」を 0 行以上持つ構文。
+Anno は、「上段本文（line1）」と「下段の別表記行（line2 以降）」を 0 行以上持つ構文。
 
 ### 6.1 構文（規範）
 
 ```ebnf
-GlossBlock := '{' GlossLine ( '/' GlossLine )* '}'
+AnnoBlock := '{' AnnoLine ( '/' AnnoLine )* '}'
 ```
 
-- `GlossLine` は 1 行分の内容（GlossLine 型）であり、**Ruby と Math を含んでよい**。
-- `/` は **未エスケープ**かつ「Ruby/Math の外側」にあるときのみ、GlossLine の区切りとして働く。
-- GlossBlock の終端は、GlossBlock 内で最初に現れる **未エスケープ `}`** とする（Ruby/Math の外側）。
+- `AnnoLine` は 1 行分の内容（AnnoLine 型）であり、**Ruby と Math を含んでよい**。
+- `/` は **未エスケープ**かつ「Ruby/Math の外側」にあるときのみ、AnnoLine の区切りとして働く。
+- AnnoBlock の終端は、AnnoBlock 内で最初に現れる **未エスケープ `}`** とする（Ruby/Math の外側）。
 
 ### 6.2 行数（規範）
 
-- `{main}`（`/` を含まない）も GlossBlock として許可する。
+- `{main}`（`/` を含まない）も AnnoBlock として許可する。
 - `{a//b}` のように空行を含む場合、空行は `segments=[]`（空）として扱う（推奨しない）。
 
 ---
@@ -169,7 +169,7 @@ GlossBlock := '{' GlossLine ( '/' GlossLine )* '}'
 ### 7.2 優先順位（規範）
 
 - `$$...$$` は `$...$` より優先して認識する（`$$` のほうが長い区切りなので先に試す）。
-- Math 区間内部の `[]` `{}` `/` は Gloss/Ruby の構文として解釈しない。
+- Math 区間内部の `[]` `{}` `/` は Anno/Ruby の構文として解釈しない。
 
 ### 7.3 エスケープ（規範）
 
@@ -186,18 +186,18 @@ GlossBlock := '{' GlossLine ( '/' GlossLine )* '}'
 パーサーは左から右へ走査して Segment を生成する。実装上、次の優先順位を推奨する。
 
 1. **Math の切り出し**（`$$...$$` → `$...$`）
-2. **GlossBlock**（`{...}`）
+2. **AnnoBlock**（`{...}`）
 3. **RubyBlock**（`[...]`）
 4. それ以外は Plain
 
-### 8.1 GlossLine の解析（規範）
+### 8.1 AnnoLine の解析（規範）
 
-GlossBlock 内部は次の規則で GlossLine を構築する。
+AnnoBlock 内部は次の規則で AnnoLine を構築する。
 
 - `[` を見たら RubyBlock を試行（成功すれば Ruby を追加）
 - `$` / `$$` を見たら MathSegment を試行（成功すれば Math を追加）
-- `/` を見たら「未エスケープ」であり Ruby/Math の外側なら次の GlossLine を開始
-- `}`（未エスケープ）で GlossBlock 終了
+- `/` を見たら「未エスケープ」であり Ruby/Math の外側なら次の AnnoLine を開始
+- `}`（未エスケープ）で AnnoBlock 終了
 
 ### 8.2 RubyBase の解析（規範）
 
@@ -215,8 +215,8 @@ RubyBase は **InlineSegment** 列として構築する。
 
 - RubyBlock:
     - `]` が見つからない、未エスケープ `/` がない、未エスケープ `[` が内部にある等の場合は Ruby として解釈しない。
-- GlossBlock:
-    - `}` が見つからない場合は Gloss として解釈しない。
+- AnnoBlock:
+    - `}` が見つからない場合は Anno として解釈しない。
 - Math:
     - 対応する終端 `$`（または `$$`）が見つからない場合は Math として解釈しない。
 
@@ -235,14 +235,14 @@ HTML の Ruby マークアップの利用を推奨する。
 - 明示形: `<ruby><rb>base</rb><rt>reading</rt></ruby>`
 - 互換性のため、必要に応じて `<rp>` を用いたフォールバック括弧表示を追加してよい。
 
-### 10.2 Gloss
+### 10.2 Anno
 
-Gloss は `lines[0]`（上段）を本文として出し、`lines[1..]` を下段として縦に積む。
+Anno は `lines[0]`（上段）を本文として出し、`lines[1..]` を下段として縦に積む。
 
-- wrapper: `<span class="gloss">...</span>`
-- 下段行: `<span class="gloss-alt">...</span>`
+- wrapper: `<span class="nm-anno">...</span>`
+- 下段行: `<span class="nm-anno-note">...</span>`
 
-> 注: 既存 CSS の都合で `term/term-alt` のクラス名を継続利用してもよい（仕様用語としては gloss を推奨）。
+> 注: 既存 CSS の都合で `term/term-alt` のクラス名を継続利用してもよい（仕様用語としては anno を推奨）。
 
 ### 10.3 Math（README の方針との整合）
 
@@ -262,7 +262,7 @@ README の「`$` による TeX 数式記法を残す」を満たすため、HTML
 - `[a/b/c]` → Ruby(base="a", reading="b/c")（最初の未エスケープ `/` のみ区切り）
 - `[AC\/DC/えーしーでぃーしー]` → base=`"AC/DC"`
 
-### 11.2 Gloss（多段＋alt 内 Ruby）
+### 11.2 Anno（多段＋注釈内 Ruby）
 
 - `{Nara/[奈良/なら]}`  
   - `lines=["Nara", Ruby("奈良","なら")]`

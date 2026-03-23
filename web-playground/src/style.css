@@ -67,7 +67,7 @@ del { text-decoration: line-through; color: var(--muted); }
 .nm-code code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; white-space: pre; }
 .nm-code-inline { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; padding: 1px 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; }
 
-/* Unified Ruby and Gloss Styles */
+/* Unified Ruby and Anno Styles */
 ruby rt {
   font-size: 0.65em;
   color: var(--muted);
@@ -75,10 +75,10 @@ ruby rt {
   line-height: 1;
 }
 .nm-ruby { ruby-position: over; }
-.nm-gloss { ruby-position: under; }
-.nm-gloss rt { font-size: 0.65em; } /* Inherits color from rt rule */
-.nm-gloss-note { display: inline; }
-.nm-gloss-note + .nm-gloss-note::before { content: ' / '; opacity: 0.6; }
+.nm-anno { ruby-position: under; }
+.nm-anno rt { font-size: 0.65em; } /* Inherits color from rt rule */
+.nm-anno-note { display: inline; }
+.nm-anno-note + .nm-anno-note::before { content: ' / '; opacity: 0.6; }
 
 /* Footnotes */
 .nm-fn-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }

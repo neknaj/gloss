@@ -17,9 +17,9 @@ pub enum Tag<'a> {
     Section(u32),
     /// ruby: `[base/reading]` - the reading text is stored here for the End event
     Ruby(&'a str),
-    /// gloss: `{base/note1/note2}` - notes are stored for the End event (for backward compat)
-    Gloss(Vec<&'a str>),
-    GlossNote,
+    /// anno: `{base/note1/note2/...}` - notes stored for End event
+    Anno(Vec<&'a str>),
+    AnnoNote,
     List(bool),
     Item,
     Code,
@@ -707,32 +707,30 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                     let base = parts[0];
                     let notes = &parts[1..];
                     
-                    // Detect Ruby vs Gloss confusion:
+                    // Detect Anno vs Ruby confusion:
                     // {漢字/かんじ} with single purely-kana note → likely should be [漢字/かんじ]
                     if notes.len() == 1 && contains_kanji(base) && is_purely_kana_or_punct(notes[0]) {
                         warnings.push(format!(
-                            "Gloss '{{{}/{}}}' looks like a Ruby reading. Did you mean '[{}/{}]'?",
+                            "Anno '{{{}/{}}}' looks like a Ruby reading. Did you mean '[{}/{}]'?",
                             base, notes[0], base, notes[0]
                         ));
                     }
-                    // Emit: Start(Gloss), Start(GlossBase implied by rb in html), parse base,
-                    // then for each note: Start(GlossNote), parse note, End(GlossNote)
-                    // We keep Gloss(Vec) for the End event for html.rs symmetry
+                    // Emit: Start(Anno), parse base, then AnnoNote events for each note
                     let notes_owned: Vec<&str> = notes.to_vec();
-                    events.push(Event::Start(Tag::Gloss(notes_owned.clone())));
+                    events.push(Event::Start(Tag::Anno(notes_owned.clone())));
                     parse_inline(base, events, warnings, true, fn_defs, fn_refs);
                     for note in notes_owned.iter() {
-                        events.push(Event::Start(Tag::GlossNote));
+                        events.push(Event::Start(Tag::AnnoNote));
                         parse_inline(note, events, warnings, true, fn_defs, fn_refs);
-                        events.push(Event::End(Tag::GlossNote));
+                        events.push(Event::End(Tag::AnnoNote));
                     }
-                    events.push(Event::End(Tag::Gloss(notes_owned)));
+                    events.push(Event::End(Tag::Anno(notes_owned)));
                     text = &text[end + 1..];
                     continue;
                 }
             } else {
                 let snippet: String = text.chars().take(30).collect();
-                warnings.push(format!("Possibly malformed gloss syntax: '{{' with no matching '}}' near '{}'.", snippet));
+                warnings.push(format!("Possibly malformed anno syntax: '{{' with no matching '}}' near '{}'.", snippet));
             }
         }
 

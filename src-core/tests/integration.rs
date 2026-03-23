@@ -25,20 +25,20 @@ fn test_ruby() {
 }
 
 #[test]
-fn test_gloss() {
+fn test_anno() {
     assert_eq!(
         render("これは{用語/gloss}です"),
-        "<p>これは<ruby class=\"nm-gloss\"><rb>用語</rb><rt><span class=\"nm-gloss-note\">gloss</span></rt></ruby>です</p>"
+        "<p>これは<ruby class=\"nm-anno\"><rb>用語</rb><rt><span class=\"nm-anno-note\">gloss</span></rt></ruby>です</p>"
     );
 }
 
 #[test]
-fn test_gloss_multi() {
-    // Currently this will likely fail because our gloss parser may be weak on multi-parts
+fn test_anno_multi() {
+    // Currently this will likely fail because our anno parser may be weak on multi-parts
     // but this is the ideal output we are aiming for in Phase 4.
     assert_eq!(
         render("これは{Word/gloss/extra}です"),
-        "<p>これは<ruby class=\"nm-gloss\"><rb>Word</rb><rt><span class=\"nm-gloss-note\">gloss</span><span class=\"nm-gloss-note\">extra</span></rt></ruby>です</p>"
+        "<p>これは<ruby class=\"nm-anno\"><rb>Word</rb><rt><span class=\"nm-anno-note\">gloss</span><span class=\"nm-anno-note\">extra</span></rt></ruby>です</p>"
     );
 }
 

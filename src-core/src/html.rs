@@ -4,8 +4,8 @@ use crate::parser::{Event, Tag, Parser, Alignment};
 
 pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
     let mut in_thead = false;
-    let mut in_gloss = false;
-    let mut gloss_rb_closed = false;
+    let mut in_anno = false;
+    let mut anno_rb_closed = false;
 
     for event in iter {
         match event {
@@ -119,29 +119,29 @@ pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
             // Ruby: <ruby class="nm-ruby"><rb>base</rb><rt>reading</rt></ruby>
             Event::Start(Tag::Ruby(_)) => out.push_str("<ruby class=\"nm-ruby\"><rb>"),
             Event::End(Tag::Ruby(rt)) => out.push_str(&format!("</rb><rt>{}</rt></ruby>", escape_html(rt))),
-            // Gloss: <ruby class="nm-gloss"><rb>base</rb><rt>notes...</rt></ruby>
-            // Notes are now emitted as GlossNote events between Start(Gloss) and End(Gloss)
-            Event::Start(Tag::Gloss(_)) => {
-                in_gloss = true;
-                gloss_rb_closed = false;
-                out.push_str("<ruby class=\"nm-gloss\"><rb>");
+            // Anno: <ruby class="nm-anno"><rb>base</rb><rt>notes...</rt></ruby>
+            // Notes are emitted as AnnoNote events between Start(Anno) and End(Anno)
+            Event::Start(Tag::Anno(_)) => {
+                in_anno = true;
+                anno_rb_closed = false;
+                out.push_str("<ruby class=\"nm-anno\"><rb>");
             }
-            Event::End(Tag::Gloss(_)) => {
-                if in_gloss && !gloss_rb_closed {
+            Event::End(Tag::Anno(_)) => {
+                if in_anno && !anno_rb_closed {
                     // Empty gloss or no notes? close it anyway
                     out.push_str("</rb><rt>");
                 }
-                in_gloss = false;
+                in_anno = false;
                 out.push_str("</rt></ruby>");
             }
-            Event::Start(Tag::GlossNote) => {
-                if !gloss_rb_closed {
+            Event::Start(Tag::AnnoNote) => {
+                if !anno_rb_closed {
                     out.push_str("</rb><rt>");
-                    gloss_rb_closed = true;
+                    anno_rb_closed = true;
                 }
-                out.push_str("<span class=\"nm-gloss-note\">");
+                out.push_str("<span class=\"nm-anno-note\">");
             }
-            Event::End(Tag::GlossNote) => {
+            Event::End(Tag::AnnoNote) => {
                 out.push_str("</span>");
             }
             Event::FootnoteRef(n) => {
