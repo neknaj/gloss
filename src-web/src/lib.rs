@@ -34,6 +34,16 @@ pub fn main() -> Result<(), JsValue> {
         let markdown = render_editor.value();
         let parser = Parser::new(&markdown);
         let mut html_output = String::new();
+        
+        if !parser.warnings.is_empty() {
+            html_output.push_str("<div class=\"nm-warnings-box\" style=\"background:rgba(255,160,0,0.1);border:1px solid #ffa000;color:#ffb300;padding:8px;margin-bottom:16px;border-radius:6px;\">\n");
+            for w in &parser.warnings {
+                let esc = w.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+                html_output.push_str(&format!("<div style=\"font-size:0.9em;margin-bottom:4px;\">⚠️ {}</div>\n", esc));
+            }
+            html_output.push_str("</div>\n");
+        }
+        
         push_html(&mut html_output, parser);
         render_preview.set_inner_html(&html_output);
     });

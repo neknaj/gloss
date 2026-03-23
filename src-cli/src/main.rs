@@ -135,6 +135,13 @@ fn main() {
     };
 
     let parser = Parser::new(&text);
+    
+    if !parser.warnings.is_empty() {
+        for w in &parser.warnings {
+            eprintln!("\x1b[33m{}\x1b[0m", w);
+        }
+    }
+
     let mut html_body = String::new();
     push_html(&mut html_body, parser);
 

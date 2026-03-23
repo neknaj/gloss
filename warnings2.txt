@@ -1,0 +1,11 @@
+warning: unused import: `ToString`
+ --> src-core\src\parser.rs:1:29
+  |
+1 | use alloc::string::{String, ToString};
+  |                             ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: `src-core` (lib) generated 1 warning (run `cargo fix --lib -p src-core` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running `target\debug\src-cli.exe web-playground/sample.n.md`

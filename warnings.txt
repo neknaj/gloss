@@ -1,0 +1,21 @@
+warning: unused import: `ToString`
+ --> src-core\src\parser.rs:1:29
+  |
+1 | use alloc::string::{String, ToString};
+  |                             ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: `src-core` (lib) generated 1 warning (run `cargo fix --lib -p src-core` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running `target\debug\src-cli.exe web-playground/sample.n.md`
+Kanji without ruby found in text: 'ルビ記法'
+Ruby is applied to a non-Kanji character '1' in '[100%/ひゃくぱーせんと]'.
+Kanji without ruby found in text: '二次'
+Ruby is applied to a non-Kanji character 'テ' in '[テイラー展開/てぃらーてんかい]'.
+Ruby is applied to a non-Kanji character 'ベ' in '[ベイズの定理/べいずのていり]'.
+Ruby is applied to a non-Kanji character 'マ' in '[マクスウェル方程式/まくすうぇるほうていしき]'.
+Kanji without ruby found in text: '（積分形）：'
+Ruby is applied to a non-Kanji character 'シ' in '[シュレーディンガー方程式/しゅれーでぃんがーほうていしき]'.
+Kanji without ruby found in text: '的な'
+Kanji without ruby found in text: 'から見ると、'
