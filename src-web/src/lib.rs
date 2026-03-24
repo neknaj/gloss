@@ -1,5 +1,7 @@
 use wasm_bindgen::prelude::*;
 use src_core::{Parser, push_html, push_html_with_ids, fnv1a, split_source_blocks};
+#[allow(unused_imports)]
+use js_sys;
 
 // ── JSON helpers ──────────────────────────────────────────────────────────────
 
@@ -75,13 +77,24 @@ pub fn source_block_hashes(input: &str) -> String {
 // ── WASM entry point ─────────────────────────────────────────────────────────
 
 /// Called automatically when the WASM module loads.
-/// Sets up the panic hook and fires a `wasm-ready` event so JS can start.
+/// Sets up the panic hook, exposes API functions on `window`, then fires
+/// a `wasm-ready` event so the inline JS script can start using them.
 #[wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
 
-    // Signal JS that WASM is ready; JS handles all DOM wiring from here.
     let window = web_sys::window().expect("no global `window` exists");
+
+    // Expose render_with_warnings on window.
+    // The WASM exports live in an ES module scope; the inline <script> tag
+    // cannot import them directly, so we register them as window properties here.
+    let rww = Closure::<dyn Fn(String, String) -> String>::new(
+        |input: String, source: String| render_with_warnings(&input, &source),
+    );
+    js_sys::Reflect::set(&window, &"render_with_warnings".into(), rww.as_ref())?;
+    rww.forget();
+
+    // Signal JS that WASM is ready.
     let event = web_sys::Event::new("wasm-ready")?;
     window.dispatch_event(&event)?;
 
