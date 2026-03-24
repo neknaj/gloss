@@ -4,19 +4,23 @@ use alloc::collections::BTreeMap;
 use crate::path::{VfsPath, DirEntry, FsError};
 use crate::traits::FileSystem;
 
-pub enum VfsNode {
+enum VfsNode {
     File { name: String, content: Vec<u8> },
     Dir  { name: String, children: BTreeMap<String, VfsNode> },
 }
 
 pub struct MemoryVfs { root: VfsNode }
 
+impl Default for MemoryVfs {
+    fn default() -> Self { Self::new() }
+}
+
 impl MemoryVfs {
     pub fn new() -> Self {
         MemoryVfs { root: VfsNode::Dir { name: String::new(), children: BTreeMap::new() } }
     }
 
-    pub fn iter_files(&self) -> alloc::vec::IntoIter<(String, alloc::vec::Vec<u8>)> {
+    pub fn iter_files(&self) -> impl Iterator<Item = (String, Vec<u8>)> {
         let mut results = Vec::new();
         collect_files(&self.root, &mut String::from("/"), &mut results);
         results.into_iter()
@@ -197,5 +201,34 @@ mod tests {
         vfs.rename(&VfsPath::from("/old.md"), &VfsPath::from("/new.md")).unwrap();
         assert!(!vfs.exists(&VfsPath::from("/old.md")));
         assert_eq!(vfs.read(&VfsPath::from("/new.md")).unwrap(), b"content");
+    }
+
+    #[test]
+    fn create_dir_works() {
+        let mut vfs = MemoryVfs::new();
+        vfs.create_dir(&VfsPath::from("/mydir")).unwrap();
+        assert!(vfs.is_dir(&VfsPath::from("/mydir")));
+    }
+
+    #[test]
+    fn is_dir_distinguishes_file_and_dir() {
+        let mut vfs = MemoryVfs::new();
+        vfs.write(&VfsPath::from("/dir/file.md"), b"").unwrap();
+        assert!(vfs.is_dir(&VfsPath::from("/dir")));
+        assert!(!vfs.is_dir(&VfsPath::from("/dir/file.md")));
+    }
+
+    #[test]
+    fn overwrite_replaces_content() {
+        let mut vfs = MemoryVfs::new();
+        vfs.write(&VfsPath::from("/a.md"), b"old").unwrap();
+        vfs.write(&VfsPath::from("/a.md"), b"new").unwrap();
+        assert_eq!(vfs.read(&VfsPath::from("/a.md")).unwrap(), b"new");
+    }
+
+    #[test]
+    fn delete_nonexistent_returns_not_found() {
+        let mut vfs = MemoryVfs::new();
+        assert!(matches!(vfs.delete(&VfsPath::from("/ghost.md")), Err(FsError::NotFound(_))));
     }
 }

@@ -1,12 +1,13 @@
 use alloc::string::String;
 use alloc::vec::Vec;
+use serde::{Deserialize, Serialize};
 use src_plugin_types::PluginWarning;
 use crate::path::{VfsPath, DirEntry};
 use crate::traits::ImeEvent;
 use crate::primitives::{PaneId, DocId, KeyEvent, MouseEvent, SplitDirection, Rect};
 use crate::config::AppConfig;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum AppEvent {
     Key(KeyEvent),
     Mouse(MouseEvent),
@@ -33,7 +34,7 @@ pub enum AppEvent {
     Quit,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum AppCmd {
     // AppCore handles:
     WriteFile      { path: VfsPath, content: Vec<u8> },

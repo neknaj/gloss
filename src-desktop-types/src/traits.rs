@@ -1,5 +1,6 @@
 use alloc::string::String;
 use alloc::vec::Vec;
+use serde::{Deserialize, Serialize};
 use src_plugin_types::{CardLinkOutput, PluginWarning, PluginEvent, PluginFrontMatterField};
 use crate::path::{VfsPath, DirEntry, FsError};
 
@@ -10,6 +11,7 @@ pub trait FileSystem {
     fn exists(&self,     path: &VfsPath) -> bool;
     fn create_dir(&mut self, path: &VfsPath) -> Result<(), FsError>;
     fn delete(&mut self, path: &VfsPath) -> Result<(), FsError>;
+    /// Rename/move a file. Only files are supported; renaming directories returns NotFound.
     fn rename(&mut self, from: &VfsPath, to: &VfsPath) -> Result<(), FsError>;
     fn is_dir(&self,     path: &VfsPath) -> bool;
 }
@@ -35,7 +37,7 @@ pub trait ImeSource {
     fn poll_event(&mut self) -> Option<ImeEvent>;
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ImeEvent {
     Start,
     Update { preedit: String, cursor: Option<(usize, usize)> },

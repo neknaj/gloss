@@ -1,5 +1,6 @@
 use alloc::string::String;
 use alloc::vec::Vec;
+use serde::{Deserialize, Serialize};
 use crate::path::VfsPath;
 use crate::primitives::{
     PaneId, PaneKind, Rect, EditorLine, CursorDraw, SelectionDraw, PreeditDraw,
@@ -7,7 +8,7 @@ use crate::primitives::{
     DialogKind, SplitDirection,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum DrawCmd {
     SetLayout { panels: Vec<PanelLayout>, dividers: Vec<DividerLayout> },
     SetTabBar  { pane_id: PaneId, tabs: Vec<TabInfo>, active_tab: usize },
@@ -37,12 +38,12 @@ pub enum DrawCmd {
     HideTooltip,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PanelLayout {
     pub pane_id: PaneId, pub bounds: Rect, pub kind: PaneKind, pub visible: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DividerLayout {
     pub bounds: Rect, pub direction: SplitDirection, pub draggable: bool,
 }

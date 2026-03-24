@@ -1,9 +1,10 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 use alloc::collections::BTreeMap;
+use serde::{Deserialize, Serialize};
 use crate::path::VfsPath;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LintRules(pub BTreeMap<String, bool>);
 
 impl LintRules {
@@ -12,24 +13,16 @@ impl LintRules {
     }
 }
 
-impl Default for LintRules {
-    fn default() -> Self { LintRules(BTreeMap::new()) }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginEntrySpec {
     pub id: String, pub path: VfsPath, pub hooks: Vec<String>,
     pub config: String, // raw JSON string
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     pub lint: LintRules,
     pub plugins: Vec<PluginEntrySpec>,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self { AppConfig { lint: LintRules::default(), plugins: Vec::new() } }
 }
 
 #[cfg(test)]
