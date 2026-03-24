@@ -272,6 +272,10 @@ pub trait Clipboard {
     fn set_text(&mut self, text: &str);
 }
 
+/// IME イベントソース抽象
+/// AppCore はこのトレイトを保持しない（シェル層がポーリングして AppEvent::Ime に変換する）。
+/// src-desktop-types に定義する理由：ImeEvent 型と同じ no_std プロトコル層に属し、
+/// WASM・Tauri・テストで共通のインターフェースとして参照できるようにするため。
 pub trait ImeSource {
     fn poll_event(&mut self) -> Option<ImeEvent>;
 }
@@ -333,6 +337,8 @@ pub enum AppEvent {
     DirLoaded   { path: VfsPath, entries: Vec<DirEntry> },
     // レンダリング完了
     RenderComplete { pane_id: PaneId, html: String, warnings: Vec<PluginWarning> },
+    // Lint 単独完了（RunRender を伴わない RunLint の結果）
+    LintComplete   { doc_id: DocId, warnings: Vec<PluginWarning> },
     // 設定ロード完了
     ConfigLoaded(AppConfig),
     // クリップボード取得結果
@@ -355,7 +361,7 @@ pub enum AppCmd {
     WriteFile      { path: VfsPath, content: Vec<u8> },  // Fs トレイト経由
     ListDir        { path: VfsPath },                     // Fs トレイト経由
     RunRender      { pane_id: PaneId, doc_id: DocId },   // AppCore 内部で完結
-    RunLint        { doc_id: DocId },                     // AppCore 内部で完結
+    RunLint        { doc_id: DocId },                     // AppCore 内部で完結 → LintComplete で返る
     ScheduleRender { pane_id: PaneId, delay_ms: u32 },   // shell 側でタイマー管理
 
     // ── シェル層（src-desktop / src-cli）が処理するもの ─────
@@ -652,12 +658,12 @@ pub enum PanelNode {
 
 pub struct Pane {
     pub id:         PaneId,
-    pub kind:       PaneKind,
+    pub kind:       PaneKind,  // src-desktop-types §3.1b の PaneKind を再利用
     pub tabs:       Vec<Tab>,
     pub active_tab: usize,
     pub bounds:     Rect,  // view() が計算して設定
 }
-pub enum PaneKind { Editor, Preview, FileTree, PluginManager }
+// PaneKind は src-desktop-types §3.1b に定義済み（重複定義しない）
 ```
 
 ### 5.2 `update()` — 純粋関数
@@ -847,6 +853,20 @@ impl<'a, Ph: PluginHost> PluginAwareHtmlRenderer<'a, Ph> {
 pub struct NativeFs;
 impl FileSystem for NativeFs { /* std::fs 使用 */ }
 
+// PluginEntrySpec からホストを構築するコンストラクタ（src-desktop-native 内）
+pub fn make_plugin_host(specs: &[PluginEntrySpec]) -> GlossPluginHost {
+    // PluginEntrySpec → src_plugin::config::PluginEntry に変換してから GlossPluginHost::new へ渡す
+    let entries: Vec<src_plugin::config::PluginEntry> = specs.iter().map(|s| {
+        src_plugin::config::PluginEntry {
+            id:     s.id.clone(),
+            path:   std::path::PathBuf::from(s.path.as_str()),
+            hooks:  s.hooks.clone(),
+            config: serde_json::from_str(&s.config).unwrap_or(serde_json::Value::Null),
+        }
+    }).collect();
+    GlossPluginHost::new(&entries)
+}
+
 // src-plugin::GlossPluginHost への PluginHost トレイト実装
 // （src-plugin-types の型をそのまま使うのでラッパー不要）
 impl PluginHost for src_plugin::host::GlossPluginHost {
@@ -935,13 +955,36 @@ async fn dispatch(
         move || {
             let mut s = state.lock().unwrap();
 
+            // 0. エディタミューテーション先行処理
+            // update() は純粋関数のため AppCore の可変メソッドを呼べない。
+            // Key・Ime・Undo・Redo は AppCore が GapBuffer を変更し EditorViewModel を返す。
+            // この結果をモデルに反映してから update() を呼ぶことで、
+            // update() は常に最新の EditorViewModel を参照できる。
+            fn apply_editor_mutation(s: &mut AppState, ev: &AppEvent) {
+                let active_doc = s.model.workspace.open_docs.keys().next().cloned();
+                if let Some(doc_id) = active_doc {
+                    let vm = match ev {
+                        AppEvent::Key(k)       => s.core.apply_key(doc_id, k),
+                        AppEvent::Ime(ime_ev)  => s.core.apply_ime(doc_id, ime_ev.clone()),
+                        AppEvent::Key(k) if is_undo(k) => s.core.undo(doc_id),
+                        AppEvent::Key(k) if is_redo(k) => s.core.redo(doc_id),
+                        _ => None,
+                    };
+                    if let Some(vm) = vm {
+                        s.model.workspace.editors.insert(doc_id, vm);
+                    }
+                }
+            }
+
             // 1. IME イベントをキューから先行処理
-            while let Some(ev) = s.ime.poll_event() {
-                let (m, cmds) = update(s.model.clone(), AppEvent::Ime(ev));
+            while let Some(ime_ev) = s.ime.poll_event() {
+                let ev = AppEvent::Ime(ime_ev);
+                apply_editor_mutation(&mut s, &ev);
+                let (m, cmds) = update(s.model.clone(), ev);
                 s.model = m;
                 let (events, shell_cmds) = s.core.execute_cmds(cmds);
-                dispatch_shell_cmds(&mut s, shell_cmds, &window);
-                for ev in events {
+                let extra = dispatch_shell_cmds(&mut s, shell_cmds, &window);
+                for ev in events.into_iter().chain(extra) {
                     let (m, _) = update(s.model.clone(), ev);
                     s.model = m;
                 }
@@ -953,11 +996,13 @@ async fn dispatch(
                 if pending.is_empty() { break; }
                 let mut next = Vec::new();
                 for ev in pending.drain(..) {
+                    apply_editor_mutation(&mut s, &ev);
                     let (m, cmds) = update(s.model.clone(), ev);
                     s.model = m;
                     let (events, shell_cmds) = s.core.execute_cmds(cmds);
-                    dispatch_shell_cmds(&mut s, shell_cmds, &window);
+                    let extra = dispatch_shell_cmds(&mut s, shell_cmds, &window);
                     next.extend(events);
+                    next.extend(extra);
                 }
                 pending = next;
             }
@@ -970,18 +1015,30 @@ async fn dispatch(
     window.emit("draw", draw_cmds).map_err(|e| e.to_string())
 }
 
-fn dispatch_shell_cmds(s: &mut AppState, cmds: Vec<AppCmd>, window: &tauri::Window) {
+fn dispatch_shell_cmds(
+    s: &mut AppState,
+    cmds: Vec<AppCmd>,
+    window: &tauri::Window,
+) -> Vec<AppEvent> {
+    let mut extra_events = Vec::new();
     for cmd in cmds {
         match cmd {
             AppCmd::CopyToClipboard { text } => s.clipboard.set_text(&text),
+            AppCmd::PasteRequest => {
+                // spawn_blocking 内なので同期クリップボード読み取りが可能
+                if let Some(text) = s.clipboard.get_text() {
+                    extra_events.push(AppEvent::ClipboardText(text));
+                }
+            }
             AppCmd::SetImeCursorArea { rect } => { window.emit("ime-cursor-area", rect).ok(); }
             AppCmd::OpenUrl { url } => { tauri::api::shell::open(&window.shell_scope(), url, None).ok(); }
             AppCmd::Quit => { window.close().ok(); }
             // ReadFile / LoadConfig / ScheduleRender / ShowDialog は
-            // 非同期タスクとして別途 spawn され、完了時に AppEvent を再投入する
+            // 非同期タスクとして別途 spawn され、完了時に dispatch コマンドで AppEvent を再投入する
             _ => {}
         }
     }
+    extra_events
 }
 ```
 
@@ -1056,9 +1113,9 @@ persist = ["rexie"]
 ```
 1. CLI 引数パース（input / output / --config）
 2. load_app_config("gloss.toml") で AppConfig を構築
-3. AppCore::new(NativeFs, GlossPluginHost::new(&config.plugins), config)
-   ※ GlossPluginHost::new の現在のシグネチャは &[src_plugin::config::PluginEntry] だが、
-      &[PluginEntrySpec] を受け取るように更新する（src-desktop-native 内で実装）
+3. AppCore::new(NativeFs, make_plugin_host(&config.plugins), config)
+   ※ make_plugin_host() は src-desktop-native 内の自由関数（セクション 7 参照）
+      PluginEntrySpec → src_plugin::config::PluginEntry 変換を担当する
 4. AppCore::open_file(input_path)
 5. AppCore::apply_front_matter(doc_id, &fm_fields)  ← フロントマター上書き
 6. AppCore::render_full(doc_id) → (html, _, warnings)
