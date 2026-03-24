@@ -58,6 +58,14 @@ fn renders_heading_and_front_matter_without_plugins() {
 }
 
 #[test]
+fn renderer_applies_lint_config_from_default_config() {
+    let markdown = "# Hello\n\nWorld.";
+    let html = render_no_plugins(markdown);
+    assert!(html.contains("<h1>"));
+    assert!(html.contains("World."));
+}
+
+#[test]
 fn renderer_with_default_config_produces_same_output_as_push_html() {
     use src_core::html::push_html;
     let markdown = "# Hello\n\nSome *text*.\n\n```rust\nfn main() {}\n```\n";

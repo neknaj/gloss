@@ -2,7 +2,10 @@ use std::env;
 use std::fs;
 use std::process;
 use src_core::parser::Parser;
-use src_core::html::push_html;
+use src_plugin::config::GlossConfig;
+use src_plugin::host::GlossPluginHost;
+use src_plugin::renderer::PluginAwareRenderer;
+use src_plugin::convert::to_plugin_warnings;
 
 const HTML_HEAD: &str = r#"<!doctype html>
 <html lang="ja">
@@ -131,7 +134,7 @@ fn main() {
         eprintln!("Usage: {} <input.n.md> [output.html]", args[0]);
         process::exit(1);
     }
-    
+
     let input_path = &args[1];
     let output_path = if args.len() >= 3 {
         args[2].clone()
@@ -156,17 +159,42 @@ fn main() {
     };
 
     let source = input_path.to_string();
-    let parser = Parser::new_with_source(&text, &source);
+    let cfg = GlossConfig::from_file("gloss.toml");
 
-    if !parser.warnings.is_empty() {
-        for w in &parser.warnings {
+    let parser = Parser::new_with_source(&text, &source);
+    let warnings = parser.warnings.clone();
+    let events: Vec<_> = parser.collect();
+
+    if !warnings.is_empty() {
+        for w in &warnings {
             eprintln!("\x1b[33m[{}:{}:{}] {} — {}\x1b[0m",
                 w.source, w.line, w.col, w.code, w.message);
         }
     }
 
+    let fm_fields: Vec<_> = events.iter().filter_map(|e| {
+        if let src_core::parser::Event::FrontMatter(fields) = e {
+            Some(fields.as_slice())
+        } else { None }
+    }).next().unwrap_or(&[]).to_vec();
+    let effective_cfg = cfg.with_front_matter_override(&fm_fields);
+
+    let mut host = GlossPluginHost::new(&effective_cfg.plugins);
+
+    let plugin_warnings = host.run_lint_rule(
+        &source,
+        &text,
+        &to_plugin_warnings(&warnings),
+        &events,
+    );
+    for w in &plugin_warnings {
+        eprintln!("\x1b[33m[plugin:{}:{}] {} — {}\x1b[0m",
+            w.line, w.col, w.code, w.message);
+    }
+
     let mut html_body = String::new();
-    push_html(&mut html_body, parser);
+    let mut renderer = PluginAwareRenderer::new(&mut host, &effective_cfg);
+    renderer.render(&events, &mut html_body, &source, &text);
 
     let final_html = format!("{}{}{}", HTML_HEAD, html_body, HTML_TAIL);
 
