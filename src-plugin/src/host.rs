@@ -24,9 +24,9 @@ impl GlossPluginHost {
     /// Create a new host. Plugins that fail to load print an error and are skipped.
     ///
     /// Security settings per spec §6.1:
-    /// - WASI filesystem/network access disabled
+    /// - WASI disabled (wasi=false in Plugin::new)
     /// - 16 MB memory limit per plugin (256 Wasm pages of 64 KiB each)
-    /// - No network hosts allowed
+    /// - Network access blocked via disallow_all_hosts()
     pub fn new(entries: &[crate::config::PluginEntry]) -> Self {
         let mut plugins = Vec::new();
         for entry in entries {
