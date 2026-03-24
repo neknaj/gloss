@@ -276,7 +276,7 @@ $$F(g \circ f) = F(g) \circ F(f)$$
 
 $$\text{Zn} + \text{H}_2\text{SO}_4 \to \text{ZnSO}_4 + \text{H}_2\uparrow$$
 
-ギブズの{[自由エネルギー/じゆうえねるぎー]/Gibbs free energy}（[熱力学/ねつりきがく]）：
+ギブズの{[自由/じゆう]エネルギー/Gibbs free energy}（[熱力学/ねつりきがく]）：
 
 $$\Delta G = \Delta H - T\Delta S$$
 
