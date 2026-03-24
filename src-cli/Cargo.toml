@@ -5,3 +5,7 @@ edition = "2024"
 
 [dependencies]
 src-core = { path = "../src-core" }
+src-plugin = { path = "../src-plugin" }
+
+[dev-dependencies]
+tempfile = "3"
