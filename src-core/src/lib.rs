@@ -5,7 +5,7 @@ extern crate alloc;
 pub mod parser;
 pub mod html;
 
-pub use parser::{Parser, Event, Tag, Warning, fnv1a, split_source_blocks};
+pub use parser::{Parser, Event, Tag, Warning, FrontMatterField, fnv1a, split_source_blocks};
 pub use html::{push_html, push_html_with_ids};
 
 #[cfg(test)]

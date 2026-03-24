@@ -34,6 +34,52 @@ pub mod codes {
     pub const RUBY_KANJI_READING:      &str = "ruby-kanji-reading";
 }
 
+// ── Front matter ─────────────────────────────────────────────────────────────
+
+/// A single `key: value` field from a YAML-style front matter block.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrontMatterField<'a> {
+    pub key: &'a str,
+    /// Raw value string as written (may be `"quoted"`, `['array']`, or bare).
+    pub raw: &'a str,
+}
+
+/// Extract a front matter block from the very start of `text`.
+/// The block must begin with `---\n` and end with a line containing only `---`.
+/// Returns `(fields, remainder)` where `remainder` is the text after the closing `---`.
+fn extract_front_matter<'a>(text: &'a str) -> Option<(Vec<FrontMatterField<'a>>, &'a str)> {
+    if !text.starts_with("---\n") && !text.starts_with("---\r\n") {
+        return None;
+    }
+    let after_open = text.find('\n').unwrap() + 1;
+    let rest = &text[after_open..];
+
+    // Find closing `---` line: `\n---\n`, `\n---\r\n`, `\n---` at EOF
+    let close = rest.find("\n---\n").map(|p| (p, p + 5))
+        .or_else(|| rest.find("\n---\r\n").map(|p| (p, p + 6)))
+        .or_else(|| {
+            if rest.ends_with("\n---") { Some((rest.len() - 4, rest.len())) } else { None }
+        })?;
+
+    let (fm_end, content_start) = close;
+    let fm_str = &rest[..fm_end];
+    let remainder = if content_start < rest.len() { &rest[content_start..] } else { "" };
+
+    let mut fields = Vec::new();
+    for line in fm_str.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') { continue; }
+        if let Some(colon) = line.find(':') {
+            let key = line[..colon].trim();
+            let raw = line[colon + 1..].trim();
+            if !key.is_empty() {
+                fields.push(FrontMatterField { key, raw });
+            }
+        }
+    }
+    Some((fields, remainder))
+}
+
 // ── Warning struct ────────────────────────────────────────────────────────────
 
 /// A lint/parse warning with source position information.
@@ -155,6 +201,9 @@ pub enum Event<'a> {
     /// Emitted by the parser before Paragraph / Heading / CodeBlock / etc.
     /// so the HTML renderer can attach `data-bid` attributes.
     BlockId(u64),
+    /// Front matter fields from the leading `---` block.
+    /// Always the first event when front matter is present.
+    FrontMatter(Vec<FrontMatterField<'a>>),
 }
 
 // ── Public parser ─────────────────────────────────────────────────────────────
@@ -173,9 +222,19 @@ impl<'a> Parser<'a> {
     /// Parse with a named source file label for warning messages.
     pub fn new_with_source(text: &'a str, source: &'a str) -> Self {
         let ctx = ParseCtx::new(text, source);
-        let lines: Vec<&str> = text.lines().collect();
-        let mut events = Vec::new();
+        let mut events: Vec<Event<'a>> = Vec::new();
         let mut warnings = Vec::new();
+
+        // Strip front matter first; ParseCtx is built from the full text so
+        // pointer-arithmetic line numbers remain correct for the remainder.
+        let content = if let Some((fields, remainder)) = extract_front_matter(text) {
+            events.push(Event::FrontMatter(fields));
+            remainder
+        } else {
+            text
+        };
+
+        let lines: Vec<&str> = content.lines().collect();
         let fn_defs = collect_fn_defs(&lines);
         let mut fn_refs: Vec<&str> = Vec::new();
         parse_blocks(&lines, &mut events, &mut warnings, &ctx, true, &fn_defs, &mut fn_refs);

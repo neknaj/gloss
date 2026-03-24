@@ -130,6 +130,16 @@
         }
         #preview pre.nm-code { padding: 12px; margin: 1em 0; overflow-x: auto; border: 1px solid #333; line-height: 1.25; }
 
+        /* Front matter */
+        #preview .nm-frontmatter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 7px 14px; margin: 4px 0 20px; border-left: 3px solid var(--col-accent); background: rgba(122,162,247,0.07); border-radius: 0 8px 8px 0; font-size: 0.84em; }
+        #preview .nm-fm-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+        #preview .nm-fm-field { display: inline-flex; align-items: center; gap: 4px; }
+        #preview .nm-fm-key { color: inherit; opacity: 0.55; font-size: 0.9em; }
+        #preview .nm-fm-key::after { content: ":"; }
+        #preview .nm-fm-val { font-weight: 500; }
+        #preview .nm-fm-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+        #preview .nm-fm-tag { background: rgba(122,162,247,0.14); border: 1px solid rgba(122,162,247,0.35); color: var(--col-accent); border-radius: 12px; padding: 1px 9px; font-size: 0.82em; }
+
         /* Warnings box */
         #warnings-box {
             display: none;

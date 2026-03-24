@@ -1,6 +1,7 @@
 use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use alloc::format;
-use crate::parser::{Event, Tag, Parser, Alignment};
+use crate::parser::{Event, Tag, Parser, Alignment, FrontMatterField};
 
 /// Render to HTML without block IDs (for CLI / tests / snapshot comparison).
 pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
@@ -18,6 +19,9 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
     let mut in_anno = false;
     let mut anno_rb_closed = false;
     let mut pending_bid: Option<u64> = None;
+    let mut pending_fm: Option<String> = None;  // front matter HTML, buffered until after H1
+    let mut fm_emitted = false;
+    let start_len = out.len(); // used to prepend fm if there is no H1
 
     // Returns `data-bid="HEX"` or `""` depending on the `block_ids` flag.
     let take_bid = |pending: &mut Option<u64>| -> String {
@@ -33,6 +37,9 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
 
     for event in iter {
         match event {
+            Event::FrontMatter(fields) => {
+                pending_fm = Some(render_frontmatter(&fields));
+            }
             Event::BlockId(id) => {
                 pending_bid = Some(id);
             }
@@ -69,7 +76,16 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
             Event::Start(Tag::Heading(level)) => {
                 out.push_str(&format!("<h{}{}>", level, take_bid(&mut pending_bid)));
             }
-            Event::End(Tag::Heading(level)) => out.push_str(&format!("</h{}>\n", level)),
+            Event::End(Tag::Heading(level)) => {
+                out.push_str(&format!("</h{}>\n", level));
+                // Emit front matter directly after the first H1
+                if level == 1 && !fm_emitted {
+                    fm_emitted = true;
+                    if let Some(fm) = pending_fm.take() {
+                        out.push_str(&fm);
+                    }
+                }
+            }
             Event::Start(Tag::Section(level)) => {
                 out.push_str(&format!("<section class=\"nm-sec level-{}\">\n", level));
             }
@@ -216,6 +232,73 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
             }
         }
     }
+
+    // No H1 was found — prepend front matter at the very start of our output
+    if let Some(fm) = pending_fm {
+        let content = out.split_off(start_len);
+        out.push_str(&fm);
+        out.push_str(&content);
+    }
+}
+
+// ── Front matter rendering ────────────────────────────────────────────────────
+
+/// Strip surrounding `"..."` or `'...'` quotes from a scalar value.
+fn fm_scalar(raw: &str) -> &str {
+    let t = raw.trim();
+    if t.len() >= 2 &&
+       ((t.starts_with('"') && t.ends_with('"')) ||
+        (t.starts_with('\'') && t.ends_with('\'')))
+    {
+        &t[1..t.len() - 1]
+    } else {
+        t
+    }
+}
+
+/// Parse a YAML flow sequence like `["a", "b", "c"]` into a Vec of strings.
+fn fm_list(raw: &str) -> Vec<String> {
+    let inner = raw.trim().trim_start_matches('[').trim_end_matches(']');
+    inner.split(',')
+        .map(|s| fm_scalar(s.trim()).to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn render_frontmatter(fields: &[FrontMatterField]) -> String {
+    let mut meta = String::new();
+    let mut tags_html = String::new();
+
+    for field in fields {
+        if field.key == "tags" {
+            for tag in fm_list(field.raw) {
+                tags_html.push_str(&format!(
+                    "<span class=\"nm-fm-tag\">{}</span>", escape_html(&tag)
+                ));
+            }
+        } else {
+            let val = fm_scalar(field.raw);
+            meta.push_str(&format!(
+                "<span class=\"nm-fm-field nm-fm-{k}\"><span class=\"nm-fm-key\">{k}</span><span class=\"nm-fm-val\">{v}</span></span>",
+                k = escape_html(field.key),
+                v = escape_html(val),
+            ));
+        }
+    }
+
+    let mut out = String::from("<div class=\"nm-frontmatter\">");
+    if !meta.is_empty() {
+        out.push_str("<div class=\"nm-fm-meta\">");
+        out.push_str(&meta);
+        out.push_str("</div>");
+    }
+    if !tags_html.is_empty() {
+        out.push_str("<div class=\"nm-fm-tags\">");
+        out.push_str(&tags_html);
+        out.push_str("</div>");
+    }
+    out.push_str("</div>\n");
+    out
 }
 
 pub fn escape_html(s: &str) -> String {

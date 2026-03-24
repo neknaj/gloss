@@ -1,3 +1,9 @@
+---
+date: "2024-09-20"
+tags: ["Gloss", "Markdown", "Ruby"]
+type: "Sample"
+---
+
 # Gloss Web Playground — サンプル
 
 このエディタでは **Gloss [拡張/かくちょう] Markdown** をリアルタイムでレンダリングできます。

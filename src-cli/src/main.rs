@@ -65,6 +65,16 @@ del { text-decoration: line-through; color: var(--muted); }
 .nm-footnotes li { margin: 4px 0; }
 .nm-fn-back { color: var(--muted); text-decoration: none; margin-left: 4px; }
 
+/* Front matter */
+.nm-frontmatter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 7px 14px; margin: 4px 0 20px; border-left: 3px solid var(--accent); background: rgba(122,162,247,0.06); border-radius: 0 8px 8px 0; font-size: 0.84em; }
+.nm-fm-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.nm-fm-field { display: inline-flex; align-items: center; gap: 4px; }
+.nm-fm-key { color: var(--muted); font-size: 0.9em; }
+.nm-fm-key::after { content: ":"; }
+.nm-fm-val { color: var(--fg); font-weight: 500; }
+.nm-fm-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.nm-fm-tag { background: rgba(122,162,247,0.14); border: 1px solid rgba(122,162,247,0.35); color: var(--accent); border-radius: 12px; padding: 1px 9px; font-size: 0.82em; }
+
 /* Unified Ruby and Anno Styles */
 ruby rt {
   font-size: 0.65em;
