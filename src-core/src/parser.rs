@@ -30,6 +30,8 @@ pub mod codes {
     pub const CARD_NON_HTTP:           &str = "card-non-http";
     pub const CARD_MALFORMED:          &str = "card-malformed";
     pub const CARD_UNKNOWN_TYPE:       &str = "card-unknown-type";
+    pub const RUBY_KANA_BASE:          &str = "ruby-kana-base";
+    pub const RUBY_KANJI_READING:      &str = "ruby-kanji-reading";
 }
 
 // ── Warning struct ────────────────────────────────────────────────────────────
@@ -268,6 +270,26 @@ fn is_purely_hiragana(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| matches!(c,
         '\u{3040}'..='\u{309F}' |
         '\u{30FC}'
+    ))
+}
+
+/// True if `s` contains at least one hiragana or katakana character.
+fn has_kana(s: &str) -> bool {
+    s.chars().any(|c| matches!(c,
+        '\u{3040}'..='\u{309F}' |   // Hiragana
+        '\u{30A0}'..='\u{30FF}' |   // Katakana
+        '\u{31F0}'..='\u{31FF}' |   // Katakana Phonetic Extensions
+        '\u{FF65}'..='\u{FF9F}'     // Halfwidth Katakana
+    ))
+}
+
+/// True if `s` contains at least one CJK ideograph (kanji).
+fn has_kanji(s: &str) -> bool {
+    s.chars().any(|c| matches!(c,
+        '\u{3400}'..='\u{4DBF}' |   // CJK Extension A
+        '\u{4E00}'..='\u{9FFF}' |   // CJK Unified Ideographs
+        '\u{F900}'..='\u{FAFF}' |   // CJK Compatibility Ideographs
+        '\u{20000}'..='\u{2A6DF}'   // CJK Extension B
     ))
 }
 
@@ -817,6 +839,23 @@ fn parse_inline<'a>(
                             format!(
                                 "Ruby '[{}/{}]': katakana base with hiragana reading. \
                                  Katakana is already phonetic; use romanization or the original script instead.",
+                                base, ruby),
+                            token);
+                    } else if !base.is_empty() && has_kana(base) {
+                        // More general kana-in-base check; skipped when the more specific
+                        // ruby-katakana-hiragana already fired to avoid double-warning.
+                        ctx.warn(warnings, codes::RUBY_KANA_BASE,
+                            format!(
+                                "Ruby '[{}/{}]': base text contains kana. \
+                                 Ruby is intended for kanji; kana bases are usually unnecessary.",
+                                base, ruby),
+                            token);
+                    }
+                    if !ruby.is_empty() && has_kanji(ruby) {
+                        ctx.warn(warnings, codes::RUBY_KANJI_READING,
+                            format!(
+                                "Ruby '[{}/{}]': reading contains kanji. \
+                                 Readings should be in kana or romanization, not kanji.",
                                 base, ruby),
                             token);
                     }
