@@ -127,21 +127,22 @@ impl GlossPluginHost {
         events: &[Event<'a>],
     ) -> Vec<PluginWarning> {
         let plugin_events = to_plugin_events(events);
-        let input = LintRuleInput {
-            source: source.to_string(),
-            markdown: markdown.to_string(),
-            existing_warnings: existing_warnings.to_vec(),
-            events: plugin_events,
-        };
-        let json = match serde_json::to_string(&input) {
-            Ok(j) => j,
-            Err(_) => return vec![],
-        };
         let mut all_warnings = Vec::new();
         for p in &mut self.plugins {
             if !p.hooks.iter().any(|h| h == "lint-rule") {
                 continue;
             }
+            let input = LintRuleInput {
+                source: source.to_string(),
+                markdown: markdown.to_string(),
+                existing_warnings: existing_warnings.to_vec(),
+                events: plugin_events.clone(),
+                config: p.config.clone(),
+            };
+            let json = match serde_json::to_string(&input) {
+                Ok(j) => j,
+                Err(_) => continue,
+            };
             match p.instance.call::<&str, String>("lint_rule", &json) {
                 Ok(raw) => {
                     match serde_json::from_str::<LintRuleOutput>(&raw) {

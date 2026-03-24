@@ -71,6 +71,7 @@ pub struct LintRuleInput {
     pub markdown: String,
     pub existing_warnings: Vec<PluginWarning>,
     pub events: Vec<PluginEvent>,
+    pub config: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

@@ -8,7 +8,7 @@ pub struct PluginAwareRenderer<'host> {
 }
 
 impl<'host> PluginAwareRenderer<'host> {
-    pub fn new(host: &'host mut GlossPluginHost, _cfg: &'host crate::config::GlossConfig) -> Self {
+    pub fn new(host: &'host mut GlossPluginHost) -> Self {
         Self { host }
     }
 

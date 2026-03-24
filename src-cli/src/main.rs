@@ -139,15 +139,14 @@ fn main() {
     let output_path = if args.len() >= 3 {
         args[2].clone()
     } else {
-        let mut p = input_path.to_string();
-        if p.ends_with(".n.md") {
-            p = p.replace(".n.md", ".html");
-        } else if p.ends_with(".md") {
-            p = p.replace(".md", ".html");
+        let p = input_path.as_str();
+        if let Some(stem) = p.strip_suffix(".n.md") {
+            format!("{stem}.html")
+        } else if let Some(stem) = p.strip_suffix(".md") {
+            format!("{stem}.html")
         } else {
-            p.push_str(".html");
+            format!("{p}.html")
         }
-        p
     };
 
     let text = match fs::read_to_string(input_path) {
@@ -188,12 +187,12 @@ fn main() {
         &events,
     );
     for w in &plugin_warnings {
-        eprintln!("\x1b[33m[plugin:{}:{}] {} — {}\x1b[0m",
-            w.line, w.col, w.code, w.message);
+        eprintln!("\x1b[33m[{}:{}:{}] {} — {}\x1b[0m",
+            source, w.line, w.col, w.code, w.message);
     }
 
     let mut html_body = String::new();
-    let mut renderer = PluginAwareRenderer::new(&mut host, &effective_cfg);
+    let mut renderer = PluginAwareRenderer::new(&mut host);
     renderer.render(&events, &mut html_body, &source, &text);
 
     let final_html = format!("{}{}{}", HTML_HEAD, html_body, HTML_TAIL);

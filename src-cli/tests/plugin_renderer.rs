@@ -1,15 +1,13 @@
 use src_core::parser::Parser;
-use src_plugin::config::GlossConfig;
 use src_plugin::host::GlossPluginHost;
 use src_plugin::renderer::PluginAwareRenderer;
 
 fn render_no_plugins(markdown: &str) -> String {
     let parser = Parser::new_with_source(markdown, "test.n.md");
     let events: Vec<_> = parser.collect();
-    let cfg = GlossConfig::default();
     let mut host = GlossPluginHost { plugins: vec![] };
     let mut out = String::new();
-    let mut renderer = PluginAwareRenderer::new(&mut host, &cfg);
+    let mut renderer = PluginAwareRenderer::new(&mut host);
     renderer.render(&events, &mut out, "test.n.md", markdown);
     out
 }
@@ -58,7 +56,7 @@ fn renders_heading_and_front_matter_without_plugins() {
 }
 
 #[test]
-fn renderer_applies_lint_config_from_default_config() {
+fn renderer_renders_basic_content_with_default_config() {
     let markdown = "# Hello\n\nWorld.";
     let html = render_no_plugins(markdown);
     assert!(html.contains("<h1>"));
