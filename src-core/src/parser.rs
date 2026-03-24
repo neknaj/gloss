@@ -5,36 +5,126 @@
 //! - **Anno** (`{base/note1/note2/...}`) — semantic annotation below text
 //! - **Nest** (`---` / `;;;`) — explicit section-close markers
 //! - **Math** (`$…$` / `$$…$$`) — KaTeX math; brackets inside are not parsed as Ruby/Anno
-//! - **Lint** — parser warnings collected in [`Parser::warnings`]
+//! - **Lint** — parser warnings collected in [`Parser::warnings`] as [`Warning`] values
 
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::format;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Alignment {
-    None,
-    Left,
-    Center,
-    Right,
+// ── Warning codes ────────────────────────────────────────────────────────────
+
+pub mod codes {
+    pub const RUBY_KATAKANA_HIRAGANA:  &str = "ruby-katakana-hiragana";
+    pub const RUBY_EMPTY_BASE:         &str = "ruby-empty-base";
+    pub const RUBY_EMPTY_READING:      &str = "ruby-empty-reading";
+    pub const RUBY_SELF_REFERENTIAL:   &str = "ruby-self-referential";
+    pub const RUBY_MALFORMED:          &str = "ruby-malformed";
+    pub const ANNO_LOOKS_LIKE_RUBY:    &str = "anno-looks-like-ruby";
+    pub const ANNO_MALFORMED:          &str = "anno-malformed";
+    pub const ANNO_EMPTY_BASE:         &str = "anno-empty-base";
+    pub const KANJI_NO_RUBY:           &str = "kanji-no-ruby";
+    pub const MATH_UNCLOSED_DISPLAY:   &str = "math-unclosed-display";
+    pub const MATH_UNCLOSED_INLINE:    &str = "math-unclosed-inline";
+    pub const FOOTNOTE_UNDEFINED_REF:  &str = "footnote-undefined-ref";
+    pub const FOOTNOTE_UNUSED_DEF:     &str = "footnote-unused-def";
+    pub const CARD_NON_HTTP:           &str = "card-non-http";
+    pub const CARD_MALFORMED:          &str = "card-malformed";
+    pub const CARD_UNKNOWN_TYPE:       &str = "card-unknown-type";
 }
+
+// ── Warning struct ────────────────────────────────────────────────────────────
+
+/// A lint/parse warning with source position information.
+#[derive(Debug, Clone)]
+pub struct Warning {
+    /// Machine-readable code (see [`codes`]).
+    pub code: &'static str,
+    /// Human-readable description.
+    pub message: String,
+    /// Source filename, or empty string if unknown.
+    pub source: String,
+    /// 1-based line number in the source file.
+    pub line: u32,
+    /// 1-based character (Unicode scalar) column in the source line.
+    pub col: u32,
+}
+
+// ── Position context ─────────────────────────────────────────────────────────
+
+/// Holds the original input and precomputed line-start offsets so that any
+/// `&str` sub-slice of the input can be mapped to `(line, col)` via pointer
+/// arithmetic in O(log n).
+struct ParseCtx<'a> {
+    input: &'a str,
+    source: &'a str,
+    /// Byte offset of the first byte of each line (index 0 → line 1).
+    line_starts: Vec<usize>,
+}
+
+impl<'a> ParseCtx<'a> {
+    fn new(input: &'a str, source: &'a str) -> Self {
+        let mut starts = alloc::vec![0usize];
+        let bytes = input.as_bytes();
+        for i in 0..bytes.len() {
+            if bytes[i] == b'\n' {
+                starts.push(i + 1);
+            }
+        }
+        ParseCtx { input, source, line_starts: starts }
+    }
+
+    /// Convert a sub-slice of `self.input` to `(1-based line, 1-based char col)`.
+    ///
+    /// If `s` is not a sub-slice of the input (e.g. a synthesised string),
+    /// falls back to (1, 1).
+    fn pos(&self, s: &str) -> (u32, u32) {
+        let input_start = self.input.as_ptr() as usize;
+        let s_start = s.as_ptr() as usize;
+        if s_start < input_start || s_start > input_start + self.input.len() {
+            return (1, 1);
+        }
+        let offset = s_start - input_start;
+        // Find last line_start ≤ offset
+        let line_idx = self.line_starts.partition_point(|&ls| ls <= offset);
+        let line = line_idx as u32;            // 1-based
+        let line_start = self.line_starts[line_idx.saturating_sub(1)];
+        let col = self.input[line_start..offset].chars().count() as u32 + 1;
+        (line, col)
+    }
+
+    fn warn(&self, warnings: &mut Vec<Warning>, code: &'static str, msg: String, at: &str) {
+        let (line, col) = self.pos(at);
+        warnings.push(Warning {
+            code,
+            message: msg,
+            source: self.source.to_string(),
+            line,
+            col,
+        });
+    }
+}
+
+// ── AST types ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Alignment { None, Left, Center, Right }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tag<'a> {
     Paragraph,
     Heading(u32),
     Section(u32),
-    /// ruby: `[base/reading]` - the reading text is stored here for the End event
+    /// `[base/reading]` — reading stored for the End event.
     Ruby(&'a str),
-    /// anno: `{base/note1/note2/...}` - notes stored for End event
+    /// `{base/note1/note2/…}` — notes stored for the End event.
     Anno(Vec<&'a str>),
     AnnoNote,
     List(bool),
     Item,
     Code,
-    CodeBlock(&'a str, &'a str),   // (lang, filename)
+    CodeBlock(&'a str, &'a str),    // (lang, filename)
     FootnoteSection,
-    FootnoteItem(u32),             // footnote number
+    FootnoteItem(u32),
     Blockquote,
     Table(Vec<Alignment>),
     TableHead,
@@ -57,17 +147,155 @@ pub enum Event<'a> {
     SoftBreak,
     HardBreak,
     Rule,
-    CardLink(&'a str),    // URL
-    FootnoteRef(u32),     // inline superscript: footnote number
+    CardLink(&'a str),
+    FootnoteRef(u32),
+    /// Stable content-hash ID for the immediately following block element.
+    /// Emitted by the parser before Paragraph / Heading / CodeBlock / etc.
+    /// so the HTML renderer can attach `data-bid` attributes.
+    BlockId(u64),
 }
+
+// ── Public parser ─────────────────────────────────────────────────────────────
 
 pub struct Parser<'a> {
     events: alloc::vec::IntoIter<Event<'a>>,
-    pub warnings: Vec<String>,
+    pub warnings: Vec<Warning>,
 }
 
-/// Pre-scan all lines for footnote definitions of the form `[^id]: content`.
-/// Returns (id, content) pairs in document order; duplicate ids are ignored.
+impl<'a> Parser<'a> {
+    /// Parse with an empty source label (warnings will show `source = ""`).
+    pub fn new(text: &'a str) -> Self {
+        Self::new_with_source(text, "")
+    }
+
+    /// Parse with a named source file label for warning messages.
+    pub fn new_with_source(text: &'a str, source: &'a str) -> Self {
+        let ctx = ParseCtx::new(text, source);
+        let lines: Vec<&str> = text.lines().collect();
+        let mut events = Vec::new();
+        let mut warnings = Vec::new();
+        let fn_defs = collect_fn_defs(&lines);
+        let mut fn_refs: Vec<&str> = Vec::new();
+        parse_blocks(&lines, &mut events, &mut warnings, &ctx, true, &fn_defs, &mut fn_refs);
+        emit_fn_section(&fn_defs, &fn_refs, &mut events, &mut warnings, &ctx);
+        Parser { events: events.into_iter(), warnings }
+    }
+}
+
+impl<'a> Iterator for Parser<'a> {
+    type Item = Event<'a>;
+    fn next(&mut self) -> Option<Self::Item> { self.events.next() }
+}
+
+// ── FNV-1a hash (no_std compatible) ─────────────────────────────────────────
+
+pub fn fnv1a(s: &str) -> u64 {
+    let mut h: u64 = 14695981039346656037;
+    for b in s.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(1099511628211);
+    }
+    h
+}
+
+// ── Source block splitting ────────────────────────────────────────────────────
+
+/// Split `input` into source blocks separated by blank lines, treating fenced
+/// code blocks as atomic units.  Each returned slice is a sub-slice of `input`.
+pub fn split_source_blocks(input: &str) -> Vec<&str> {
+    let mut result: Vec<&str> = Vec::new();
+    let mut block_start: Option<usize> = None;  // byte offset in `input`
+    let mut block_end: usize = 0;
+    let mut in_fence = false;
+    let mut pos = 0usize;
+
+    for line in input.split('\n') {
+        let line_end = pos + line.len();  // exclusive, not counting \n
+        let trimmed = line.trim_start();
+
+        if trimmed.starts_with("```") {
+            in_fence = !in_fence;
+        }
+
+        if !in_fence && trimmed.is_empty() {
+            if let Some(start) = block_start {
+                result.push(&input[start..block_end]);
+                block_start = None;
+            }
+        } else {
+            if block_start.is_none() { block_start = Some(pos); }
+            block_end = line_end;
+        }
+
+        pos = line_end + 1;  // +1 for the \n character
+    }
+
+    if let Some(start) = block_start {
+        result.push(&input[start..block_end]);
+    }
+    result
+}
+
+// ── Unicode helpers ───────────────────────────────────────────────────────────
+
+fn is_kanji(c: char) -> bool {
+    matches!(c,
+        '\u{4E00}'..='\u{9FFF}' |
+        '\u{3400}'..='\u{4DBF}' |
+        '\u{20000}'..='\u{2A6DF}' |
+        '\u{2A700}'..='\u{2B73F}' |
+        '\u{2B740}'..='\u{2B81F}' |
+        '\u{2B820}'..='\u{2CEAF}' |
+        '\u{2CEB0}'..='\u{2EBEF}' |
+        '\u{30000}'..='\u{3134F}' |
+        '\u{F900}'..='\u{FAFF}' |
+        '\u{2F800}'..='\u{2FA1F}' |
+        '\u{3005}'
+    )
+}
+
+fn contains_kanji(s: &str) -> bool { s.chars().any(is_kanji) }
+
+fn is_purely_katakana(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| matches!(c,
+        '\u{30A0}'..='\u{30FF}' |
+        '\u{31F0}'..='\u{31FF}' |
+        '\u{FF65}'..='\u{FF9F}'
+    ))
+}
+
+fn is_purely_hiragana(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| matches!(c,
+        '\u{3040}'..='\u{309F}' |
+        '\u{30FC}'
+    ))
+}
+
+fn is_purely_kana_or_punct(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| {
+        matches!(c,
+            '\u{3040}'..='\u{309F}' |
+            '\u{30A0}'..='\u{30FF}' |
+            '\u{31F0}'..='\u{31FF}' |
+            '\u{FF65}'..='\u{FF9F}' |
+            '\u{3000}'..='\u{303F}' |
+            '\u{FE30}'..='\u{FE4F}' |
+            '\u{FF00}'..='\u{FF60}' |
+            '\u{FFE0}'..='\u{FFE6}' |
+            '\u{02CA}' | '\u{02C7}' | '\u{02CB}' | '\u{02D9}' |
+            '\u{31A0}'..='\u{31BF}' | '\u{3100}'..='\u{312F}' |
+            '\u{AC00}'..='\u{D7AF}' |
+            '\u{1100}'..='\u{11FF}' |
+            '\u{3130}'..='\u{318F}' |
+            '\u{0100}'..='\u{024F}' |
+            '\u{1E00}'..='\u{1EFF}' |
+            ' '
+        )
+    })
+}
+
+// ── Footnote helpers ──────────────────────────────────────────────────────────
+
 fn collect_fn_defs<'a>(lines: &[&'a str]) -> Vec<(&'a str, &'a str)> {
     let mut defs: Vec<(&'a str, &'a str)> = Vec::new();
     for &line in lines {
@@ -76,8 +304,7 @@ fn collect_fn_defs<'a>(lines: &[&'a str]) -> Vec<(&'a str, &'a str)> {
             if let Some(colon_idx) = rest.find("]: ") {
                 let id = &rest[..colon_idx];
                 if !id.is_empty() && !id.contains(' ') && !defs.iter().any(|(did, _)| *did == id) {
-                    let content = &rest[colon_idx + 3..];
-                    defs.push((id, content));
+                    defs.push((id, &rest[colon_idx + 3..]));
                 }
             }
         }
@@ -85,125 +312,46 @@ fn collect_fn_defs<'a>(lines: &[&'a str]) -> Vec<(&'a str, &'a str)> {
     defs
 }
 
-/// Emit the footnotes section after all blocks have been parsed.
 fn emit_fn_section<'a>(
     fn_defs: &[(&'a str, &'a str)],
     fn_refs: &[&'a str],
     events: &mut Vec<Event<'a>>,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<Warning>,
+    ctx: &ParseCtx<'a>,
 ) {
-    // Warn about definitions that were never referenced
-    for (id, _) in fn_defs {
+    for (id, content) in fn_defs {
         if !fn_refs.contains(id) {
-            warnings.push(format!(
-                "Footnote '[^{}]' is defined but never referenced.",
-                id
-            ));
+            // Position: point at the definition line content
+            ctx.warn(warnings, codes::FOOTNOTE_UNUSED_DEF,
+                format!("Footnote '[^{}]' is defined but never referenced.", id),
+                content);
         }
     }
-    if fn_refs.is_empty() {
-        return;
-    }
+    if fn_refs.is_empty() { return; }
     events.push(Event::Start(Tag::FootnoteSection));
     for (idx, &id) in fn_refs.iter().enumerate() {
         let num = (idx + 1) as u32;
         if let Some(&(_, content)) = fn_defs.iter().find(|(did, _)| *did == id) {
             events.push(Event::Start(Tag::FootnoteItem(num)));
             let mut nested_refs: Vec<&'a str> = Vec::new();
-            parse_inline(content, events, warnings, false, fn_defs, &mut nested_refs);
+            parse_inline(content, events, warnings, ctx, false, fn_defs, &mut nested_refs);
             events.push(Event::End(Tag::FootnoteItem(num)));
         }
     }
     events.push(Event::End(Tag::FootnoteSection));
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(text: &'a str) -> Self {
-        let lines: Vec<&str> = text.lines().collect();
-        let mut events = Vec::new();
-        let mut warnings = Vec::new();
-        let fn_defs = collect_fn_defs(&lines);
-        let mut fn_refs: Vec<&str> = Vec::new();
-        parse_blocks(&lines, &mut events, &mut warnings, true, &fn_defs, &mut fn_refs);
-        emit_fn_section(&fn_defs, &fn_refs, &mut events, &mut warnings);
-        Parser { events: events.into_iter(), warnings }
-    }
-}
+// ── Block parser ──────────────────────────────────────────────────────────────
 
-// Helpers for checking Unicode properties of characters
-fn is_kanji(c: char) -> bool {
-    matches!(c,
-        '\u{4E00}'..='\u{9FFF}' |   // CJK Unified Ideographs
-        '\u{3400}'..='\u{4DBF}' |   // CJK Extension A
-        '\u{20000}'..='\u{2A6DF}' | // CJK Extension B
-        '\u{2A700}'..='\u{2B73F}' | // CJK Extension C
-        '\u{2B740}'..='\u{2B81F}' | // CJK Extension D
-        '\u{2B820}'..='\u{2CEAF}' | // CJK Extension E
-        '\u{2CEB0}'..='\u{2EBEF}' | // CJK Extension F
-        '\u{30000}'..='\u{3134F}' | // CJK Extension G
-        '\u{F900}'..='\u{FAFF}' |   // CJK Compatibility Ideographs
-        '\u{2F800}'..='\u{2FA1F}' | // CJK Compatibility Ideographs Supplement
-        '\u{3005}'                  // 々 iteration mark
-    )
-}
-
-fn contains_kanji(s: &str) -> bool {
-    s.chars().any(is_kanji)
-}
-
-/// Returns true if every character is katakana (full-width, half-width, or extensions).
-fn is_purely_katakana(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| matches!(c,
-        '\u{30A0}'..='\u{30FF}' | // Katakana (includes ー U+30FC, ・ U+30FB)
-        '\u{31F0}'..='\u{31FF}' | // Katakana phonetic extensions
-        '\u{FF65}'..='\u{FF9F}'   // Half-width Katakana
-    ))
-}
-
-/// Returns true if every character is hiragana (or the shared long-vowel mark ー).
-fn is_purely_hiragana(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| matches!(c,
-        '\u{3040}'..='\u{309F}' | // Hiragana
-        '\u{30FC}'               // KATAKANA-HIRAGANA PROLONGED SOUND MARK (ー)
-    ))
-}
-
-/// Returns true if the string consists of phonetic/reading scripts:
-/// Hiragana, Katakana, Bopomofo, Hangul, or Vietnamese-specific Latin.
-fn is_purely_kana_or_punct(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| {
-        matches!(c,
-            '\u{3040}'..='\u{309F}' | // Hiragana
-            '\u{30A0}'..='\u{30FF}' | // Katakana (includes ー U+30FC and ・ U+30FB)
-            '\u{31F0}'..='\u{31FF}' | // Katakana phonetic extensions
-            '\u{FF65}'..='\u{FF9F}' | // Half-width Katakana
-            '\u{3000}'..='\u{303F}' | // CJK Symbols and Punctuation
-            '\u{FE30}'..='\u{FE4F}' | // CJK Compatibility Forms
-            '\u{FF00}'..='\u{FF60}' | // Fullwidth Latin / punctuation
-            '\u{FFE0}'..='\u{FFE6}' | // Fullwidth currency/signs
-            // Bopomofo (注音符号 / Zhuyin)
-            '\u{02CA}' | '\u{02C7}' | '\u{02CB}' | '\u{02D9}' |
-            '\u{31A0}'..='\u{31BF}' | '\u{3100}'..='\u{312F}' |
-            // Hangul (Korean)
-            '\u{AC00}'..='\u{D7AF}' | // Hangul Syllables
-            '\u{1100}'..='\u{11FF}' | // Hangul Jamo
-            '\u{3130}'..='\u{318F}' | // Hangul Compatibility Jamo
-            // Vietnamese Latin (Quốc Ngữ) specific diacritics & Pinyin
-            '\u{0100}'..='\u{024F}' | // Latin Extended-A & B (includes Đ, đ, ă, â, ê, ô, ơ, ư, etc.)
-            '\u{1E00}'..='\u{1EFF}' | // Latin Extended Additional (includes Vietnamese tone marks)
-            ' '                       // space
-        )
-    })
-}
-
-impl<'a> Iterator for Parser<'a> {
-    type Item = Event<'a>;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.events.next()
-    }
-}
-
-fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &mut Vec<String>, root: bool, fn_defs: &[(&'a str, &'a str)], fn_refs: &mut Vec<&'a str>) {
+fn parse_blocks<'a>(
+    lines: &[&'a str],
+    events: &mut Vec<Event<'a>>,
+    warnings: &mut Vec<Warning>,
+    ctx: &ParseCtx<'a>,
+    root: bool,
+    fn_defs: &[(&'a str, &'a str)],
+    fn_refs: &mut Vec<&'a str>,
+) {
     let mut i = 0;
     let mut section_stack: Vec<u32> = Vec::new();
 
@@ -215,11 +363,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
 
     let close_sections_until = |events: &mut Vec<Event<'a>>, stack: &mut Vec<u32>, level: u32| {
         while let Some(&top) = stack.last() {
-            if top >= level {
-                pop_section(events, stack);
-            } else {
-                break;
-            }
+            if top >= level { pop_section(events, stack); } else { break; }
         }
     };
 
@@ -228,50 +372,43 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
         let tline = line.trim_start();
 
         // Blank
-        if tline.is_empty() {
-            i += 1;
-            continue;
-        }
+        if tline.is_empty() { i += 1; continue; }
 
-        // Footnote definition line: [^id]: content — skip (rendered in footnote section)
-        if tline.starts_with("[^") && tline.contains("]: ") {
-            i += 1;
-            continue;
-        }
+        // Footnote definition — skip (rendered in footnote section)
+        if tline.starts_with("[^") && tline.contains("]: ") { i += 1; continue; }
 
-        // Card link block: @[card](URL)
+        // Card link: @[type](url)
         if tline.starts_with("@[") {
             if let Some(bracket_end) = tline[2..].find(']') {
                 let type_name = &tline[2..2 + bracket_end];
-                let after_bracket = &tline[2 + bracket_end + 1..];
+                let after = &tline[2 + bracket_end + 1..];
                 if type_name == "card" {
-                    if after_bracket.starts_with('(') && after_bracket.ends_with(')') {
-                        let url = &after_bracket[1..after_bracket.len() - 1];
+                    if after.starts_with('(') && after.ends_with(')') {
+                        let url = &after[1..after.len() - 1];
                         if !url.starts_with("http://") && !url.starts_with("https://") {
-                            warnings.push(format!(
-                                "Card link URL '{}' should start with http:// or https://",
-                                url
-                            ));
+                            ctx.warn(warnings, codes::CARD_NON_HTTP,
+                                format!("Card link URL '{}' should start with http:// or https://", url),
+                                url);
                         }
                         events.push(Event::CardLink(url));
                     } else {
-                        warnings.push(format!(
-                            "Malformed @[card] syntax near '{}': expected @[card](URL).",
-                            &tline[..tline.len().min(40)]
-                        ));
+                        ctx.warn(warnings, codes::CARD_MALFORMED,
+                            format!("Malformed @[card] syntax near '{}': expected @[card](URL).",
+                                &tline[..tline.len().min(40)]),
+                            tline);
                     }
                 } else {
-                    warnings.push(format!(
-                        "Unknown embed type '{}' in '@[{}]': only 'card' is supported.",
-                        type_name, type_name
-                    ));
+                    ctx.warn(warnings, codes::CARD_UNKNOWN_TYPE,
+                        format!("Unknown embed type '{}' in '@[{}]': only 'card' is supported.",
+                            type_name, type_name),
+                        tline);
                 }
             }
             i += 1;
             continue;
         }
 
-        // Code block
+        // Code fence
         if tline.starts_with("```") {
             let info = tline[3..].trim();
             let (lang, filename) = if let Some(colon) = info.find(':') {
@@ -279,6 +416,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
             } else {
                 (info, "")
             };
+            events.push(Event::BlockId(fnv1a(tline)));
             events.push(Event::Start(Tag::CodeBlock(lang, filename)));
             i += 1;
             while i < lines.len() && !lines[i].trim_start().starts_with("```") {
@@ -286,39 +424,34 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                 events.push(Event::Text("\n"));
                 i += 1;
             }
-            if i < lines.len() {
-                i += 1;
-            }
+            if i < lines.len() { i += 1; }
             events.push(Event::End(Tag::CodeBlock(lang, filename)));
             continue;
         }
 
-        // Headings
+        // Heading
         if tline.starts_with('#') {
             let bytes = tline.as_bytes();
             let mut level = 0;
-            while level < bytes.len() && bytes[level] == b'#' {
-                level += 1;
-            }
+            while level < bytes.len() && bytes[level] == b'#' { level += 1; }
             if level > 0 && level <= 6 && (level == bytes.len() || bytes[level] == b' ') {
                 if root {
                     close_sections_until(events, &mut section_stack, level as u32);
                     events.push(Event::Start(Tag::Section(level as u32)));
                     section_stack.push(level as u32);
                 }
+                events.push(Event::BlockId(fnv1a(tline)));
                 events.push(Event::Start(Tag::Heading(level as u32)));
-                parse_inline(tline[level..].trim(), events, warnings, false, fn_defs, fn_refs);
+                parse_inline(tline[level..].trim(), events, warnings, ctx, false, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Heading(level as u32)));
                 i += 1;
                 continue;
             }
         }
 
-        // Thematic break: first close ONE section (so hr lands in parent), then emit <hr/>
+        // Thematic break → close one section + emit <hr/>
         if line.starts_with("---") && line.chars().all(|c| c == '-') {
-            if root && line.len() == 3 {
-                pop_section(events, &mut section_stack);
-            }
+            if root && line.len() == 3 { pop_section(events, &mut section_stack); }
             events.push(Event::Rule);
             i += 1;
             continue;
@@ -328,9 +461,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
         if line.starts_with(";;;") {
             if root {
                 let count = line.matches(";;;").count();
-                for _ in 0..count {
-                    pop_section(events, &mut section_stack);
-                }
+                for _ in 0..count { pop_section(events, &mut section_stack); }
             }
             i += 1;
             continue;
@@ -354,8 +485,15 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                     break;
                 }
             }
+            // hash = hash of all source lines combined
+            let src_hash = {
+                let mut h: u64 = 14695981039346656037;
+                for ln in &bq_lines { for b in ln.bytes() { h ^= b as u64; h = h.wrapping_mul(1099511628211); } }
+                h
+            };
+            events.push(Event::BlockId(src_hash));
             events.push(Event::Start(Tag::Blockquote));
-            parse_blocks(&bq_lines, events, warnings, false, fn_defs, fn_refs);
+            parse_blocks(&bq_lines, events, warnings, ctx, false, fn_defs, fn_refs);
             events.push(Event::End(Tag::Blockquote));
             i = j;
             continue;
@@ -373,29 +511,28 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                     t.split('|').map(|s| s.trim()).collect()
                 };
                 let head = parse_cells(line);
-                let sep = parse_cells(lines[i + 1]);
+                let sep  = parse_cells(lines[i + 1]);
                 let aligns: Vec<Alignment> = sep.iter().map(|s| {
                     let s = s.trim();
                     let left = s.starts_with(':');
                     let right = s.ends_with(':');
                     if left && right { Alignment::Center }
-                    else if left { Alignment::Left }
-                    else if right { Alignment::Right }
-                    else { Alignment::None }
+                    else if left    { Alignment::Left }
+                    else if right   { Alignment::Right }
+                    else            { Alignment::None }
                 }).collect();
-
+                events.push(Event::BlockId(fnv1a(line)));
                 events.push(Event::Start(Tag::Table(aligns.clone())));
                 events.push(Event::Start(Tag::TableHead));
                 events.push(Event::Start(Tag::TableRow));
                 for (ci, cell) in head.iter().enumerate() {
                     let a = aligns.get(ci).cloned().unwrap_or(Alignment::None);
                     events.push(Event::Start(Tag::TableCell(a.clone())));
-                    parse_inline(cell, events, warnings, false, fn_defs, fn_refs);
+                    parse_inline(cell, events, warnings, ctx, false, fn_defs, fn_refs);
                     events.push(Event::End(Tag::TableCell(a)));
                 }
                 events.push(Event::End(Tag::TableRow));
                 events.push(Event::End(Tag::TableHead));
-
                 let mut j = i + 2;
                 while j < lines.len() && is_table_line(lines[j]) {
                     events.push(Event::Start(Tag::TableRow));
@@ -403,7 +540,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                     for (ci, cell) in row.iter().enumerate() {
                         let a = aligns.get(ci).cloned().unwrap_or(Alignment::None);
                         events.push(Event::Start(Tag::TableCell(a.clone())));
-                        parse_inline(cell, events, warnings, false, fn_defs, fn_refs);
+                        parse_inline(cell, events, warnings, ctx, false, fn_defs, fn_refs);
                         events.push(Event::End(Tag::TableCell(a)));
                     }
                     events.push(Event::End(Tag::TableRow));
@@ -415,12 +552,13 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
             }
         }
 
-        // Ordered/Unordered list
+        // Ordered / Unordered list
         let is_ul = tline.starts_with("- ") || tline.starts_with("* ");
         let dig_count = tline.chars().take_while(|c| c.is_ascii_digit()).count();
         let is_ol = dig_count > 0 && tline[dig_count..].starts_with(". ");
 
         if is_ul || is_ol {
+            events.push(Event::BlockId(fnv1a(tline)));
             events.push(Event::Start(Tag::List(is_ol)));
             let mut j = i;
             while j < lines.len() {
@@ -428,16 +566,13 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                 let is_ul2 = l2.starts_with("- ") || l2.starts_with("* ");
                 let d2 = l2.chars().take_while(|c| c.is_ascii_digit()).count();
                 let is_ol2 = d2 > 0 && l2[d2..].starts_with(". ");
-
                 if (is_ol && is_ol2) || (!is_ol && is_ul2) {
                     let content = if is_ul2 { &l2[2..] } else { &l2[d2 + 2..] };
                     events.push(Event::Start(Tag::Item));
-                    parse_inline(content, events, warnings, false, fn_defs, fn_refs);
+                    parse_inline(content, events, warnings, ctx, false, fn_defs, fn_refs);
                     events.push(Event::End(Tag::Item));
                     j += 1;
-                } else {
-                    break;
-                }
+                } else { break; }
             }
             events.push(Event::End(Tag::List(is_ol)));
             i = j;
@@ -445,7 +580,7 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
         }
 
         // Paragraph: collect consecutive non-block lines
-        let mut para = Vec::new();
+        let mut para: Vec<&'a str> = Vec::new();
         let mut j = i;
         while j < lines.len() {
             let ln = lines[j];
@@ -463,20 +598,23 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
                     && t[t.chars().take_while(|c| c.is_ascii_digit()).count()..].starts_with(". "))
                 || t.starts_with("@[")
                 || (t.starts_with("[^") && t.contains("]: "))
-            {
-                break;
-            }
+            { break; }
             para.push(ln);
             j += 1;
         }
 
         if !para.is_empty() {
+            // Hash paragraph content for incremental rendering
+            let para_hash = {
+                let mut h: u64 = 14695981039346656037;
+                for ln in &para { for b in ln.bytes() { h ^= b as u64; h = h.wrapping_mul(1099511628211); } }
+                h
+            };
+            events.push(Event::BlockId(para_hash));
             events.push(Event::Start(Tag::Paragraph));
             for (pidx, pline) in para.iter().enumerate() {
-                parse_inline(pline, events, warnings, false, fn_defs, fn_refs);
-                if pidx < para.len() - 1 {
-                    events.push(Event::HardBreak);
-                }
+                parse_inline(pline, events, warnings, ctx, false, fn_defs, fn_refs);
+                if pidx < para.len() - 1 { events.push(Event::HardBreak); }
             }
             events.push(Event::End(Tag::Paragraph));
         }
@@ -484,13 +622,21 @@ fn parse_blocks<'a>(lines: &[&'a str], events: &mut Vec<Event<'a>>, warnings: &m
     }
 
     if root {
-        while !section_stack.is_empty() {
-            pop_section(events, &mut section_stack);
-        }
+        while !section_stack.is_empty() { pop_section(events, &mut section_stack); }
     }
 }
 
-fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &mut Vec<String>, in_annotation: bool, fn_defs: &[(&'a str, &'a str)], fn_refs: &mut Vec<&'a str>) {
+// ── Inline parser ─────────────────────────────────────────────────────────────
+
+fn parse_inline<'a>(
+    mut text: &'a str,
+    events: &mut Vec<Event<'a>>,
+    warnings: &mut Vec<Warning>,
+    ctx: &ParseCtx<'a>,
+    in_annotation: bool,
+    fn_defs: &[(&'a str, &'a str)],
+    fn_refs: &mut Vec<&'a str>,
+) {
     while !text.is_empty() {
         // $$ math display
         if text.starts_with("$$") {
@@ -499,7 +645,8 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                 text = &text[2 + end + 2..];
                 continue;
             } else {
-                warnings.push("Unclosed '$$' math block: no matching '$$' found.".to_string());
+                ctx.warn(warnings, codes::MATH_UNCLOSED_DISPLAY,
+                    "Unclosed '$$' math block: no matching '$$' found.".to_string(), text);
             }
         }
         // $ math inline
@@ -509,7 +656,8 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                 text = &text[1 + end + 1..];
                 continue;
             } else {
-                warnings.push("Unclosed '$' math expression: no matching '$' found.".to_string());
+                ctx.warn(warnings, codes::MATH_UNCLOSED_INLINE,
+                    "Unclosed '$' math expression: no matching '$' found.".to_string(), text);
             }
         }
         // `code`
@@ -526,7 +674,7 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
         if text.starts_with("~~") {
             if let Some(end) = text[2..].find("~~") {
                 events.push(Event::Start(Tag::Strikethrough));
-                parse_inline(&text[2..2 + end], events, warnings, in_annotation, fn_defs, fn_refs);
+                parse_inline(&text[2..2 + end], events, warnings, ctx, in_annotation, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Strikethrough));
                 text = &text[2 + end + 2..];
                 continue;
@@ -536,23 +684,23 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
         if text.starts_with("**") {
             if let Some(end) = text[2..].find("**") {
                 events.push(Event::Start(Tag::Strong));
-                parse_inline(&text[2..2 + end], events, warnings, in_annotation, fn_defs, fn_refs);
+                parse_inline(&text[2..2 + end], events, warnings, ctx, in_annotation, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Strong));
                 text = &text[2 + end + 2..];
                 continue;
             }
         }
-        // *em* (not **)
+        // *em*
         if text.starts_with('*') && !text.starts_with("**") {
             if let Some(end) = text[1..].find('*') {
                 events.push(Event::Start(Tag::Emphasis));
-                parse_inline(&text[1..1 + end], events, warnings, in_annotation, fn_defs, fn_refs);
+                parse_inline(&text[1..1 + end], events, warnings, ctx, in_annotation, fn_defs, fn_refs);
                 events.push(Event::End(Tag::Emphasis));
                 text = &text[1 + end + 1..];
                 continue;
             }
         }
-        // \n  (literal backslash-n → hard break)
+        // \n → hard break
         if text.starts_with("\\n") {
             events.push(Event::HardBreak);
             text = &text[2..];
@@ -566,17 +714,13 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
             text = &text[1 + len..];
             continue;
         }
-        // ![alt](src) image — must come before [
+        // ![alt](src) image
         if text.starts_with("![") {
-            // find matching ] honouring bracket nesting inside alt
             let mut bracket = 0;
             let mut close_alt = None;
             for (idx, c) in text[1..].char_indices() {
                 if c == '[' { bracket += 1; }
-                else if c == ']' {
-                    bracket -= 1;
-                    if bracket == 0 { close_alt = Some(idx + 1); break; }
-                }
+                else if c == ']' { bracket -= 1; if bracket == 0 { close_alt = Some(idx + 1); break; } }
             }
             if let Some(ca) = close_alt {
                 if text.len() > ca + 1 && text.as_bytes()[ca + 1] == b'(' {
@@ -607,10 +751,9 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                         };
                         events.push(Event::FootnoteRef(num));
                     } else {
-                        warnings.push(format!(
-                            "Footnote reference '[^{}]' has no matching definition.",
-                            id
-                        ));
+                        ctx.warn(warnings, codes::FOOTNOTE_UNDEFINED_REF,
+                            format!("Footnote reference '[^{}]' has no matching definition.", id),
+                            &text[..total_len]);
                         events.push(Event::Text(&text[..total_len]));
                     }
                     text = &text[total_len..];
@@ -619,16 +762,13 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
             }
         }
 
-        // [content](url)  or  [base/ruby]
+        // [content](url) link  or  [base/reading] ruby
         if text.starts_with('[') {
             let mut bracket = 0;
             let mut close_bracket = None;
             for (idx, c) in text.char_indices() {
                 if c == '[' { bracket += 1; }
-                else if c == ']' {
-                    bracket -= 1;
-                    if bracket == 0 { close_bracket = Some(idx); break; }
-                }
+                else if c == ']' { bracket -= 1; if bracket == 0 { close_bracket = Some(idx); break; } }
             }
             if let Some(cb) = close_bracket {
                 let content = &text[1..cb];
@@ -638,13 +778,13 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                         let close_paren = cb + 2 + cp;
                         let href = &text[cb + 2..close_paren];
                         events.push(Event::Start(Tag::Link(href)));
-                        parse_inline(content, events, warnings, in_annotation, fn_defs, fn_refs);
+                        parse_inline(content, events, warnings, ctx, in_annotation, fn_defs, fn_refs);
                         events.push(Event::End(Tag::Link(href)));
                         text = &text[close_paren + 1..];
                         continue;
                     }
                 }
-                // [base/ruby]: find first '/' at bracket-level 0
+                // [base/ruby]: find first '/' at bracket-depth 0
                 let slash_idx = {
                     let mut blk = 0i32;
                     let mut found = None;
@@ -656,110 +796,135 @@ fn parse_inline<'a>(mut text: &'a str, events: &mut Vec<Event<'a>>, warnings: &m
                     found
                 };
                 if let Some(slash) = slash_idx {
-                    let base = &content[..slash];
-                    let ruby = &content[slash + 1..];
+                    let base  = &content[..slash];
+                    let ruby  = &content[slash + 1..];
+                    let token = &text[..cb + 1]; // whole [base/ruby] for position
+                    // ── Lint checks ───────────────────────────────────────────
+                    if base.is_empty() {
+                        ctx.warn(warnings, codes::RUBY_EMPTY_BASE,
+                            format!("Ruby '[{}]': base text is empty.", content), token);
+                    }
+                    if ruby.is_empty() {
+                        ctx.warn(warnings, codes::RUBY_EMPTY_READING,
+                            format!("Ruby '[{}]': reading is empty.", content), token);
+                    }
+                    if !base.is_empty() && !ruby.is_empty() && base == ruby {
+                        ctx.warn(warnings, codes::RUBY_SELF_REFERENTIAL,
+                            format!("Ruby '[{}/{}]': base and reading are identical.", base, ruby), token);
+                    }
                     if is_purely_katakana(base) && is_purely_hiragana(ruby) {
-                        warnings.push(format!(
-                            "Ruby '[{}/{}]': katakana base with hiragana reading. \
-                             Katakana is already phonetic; use romanization or the original script instead.",
-                            base, ruby
-                        ));
+                        ctx.warn(warnings, codes::RUBY_KATAKANA_HIRAGANA,
+                            format!(
+                                "Ruby '[{}/{}]': katakana base with hiragana reading. \
+                                 Katakana is already phonetic; use romanization or the original script instead.",
+                                base, ruby),
+                            token);
                     }
                     events.push(Event::Start(Tag::Ruby(ruby)));
-                    parse_inline(base, events, warnings, true, fn_defs, fn_refs);
+                    parse_inline(base, events, warnings, ctx, true, fn_defs, fn_refs);
                     events.push(Event::End(Tag::Ruby(ruby)));
                     text = &text[cb + 1..];
                     continue;
                 }
-                // Has ']' but no '/' — not a ruby or valid link
-                // Check if it looks like a broken [{...}/...] pattern
+                // Has ']' but no '/' — check for broken pattern
                 if content.contains('/') {
-                    warnings.push(format!("Possibly malformed ruby syntax '[{}]': has '/' but nested brackets prevent parsing.", &content[..content.len().min(30)]));
+                    ctx.warn(warnings, codes::RUBY_MALFORMED,
+                        format!("Possibly malformed ruby syntax '[{}]': has '/' but nested brackets prevent parsing.",
+                            &content[..content.len().min(30)]),
+                        &text[..cb + 1]);
                 }
             } else {
-                // No matching ']' found at all
-                let snippet: String = text.chars().take(30).collect();
-                // Only warn if the text after '[' contains '/' (looks like broken ruby/gloss)
+                // No matching ']'
                 if text[1..].contains('/') || text[1..].contains(']') {
-                    warnings.push(format!("Possibly malformed ruby syntax: '[' with no matching ']' near '{}'.", snippet));
+                    let snippet: String = text.chars().take(30).collect();
+                    ctx.warn(warnings, codes::RUBY_MALFORMED,
+                        format!("Possibly malformed ruby syntax: '[' with no matching ']' near '{}'.", snippet),
+                        text);
                 }
             }
         }
+
         // {base/note1/note2…}
         if text.starts_with('{') {
             let mut bracket = 0;
             let mut close_brace = None;
             for (idx, c) in text.char_indices() {
                 if c == '{' { bracket += 1; }
-                else if c == '}' {
-                    bracket -= 1;
-                    if bracket == 0 { close_brace = Some(idx); break; }
-                }
+                else if c == '}' { bracket -= 1; if bracket == 0 { close_brace = Some(idx); break; } }
             }
             if let Some(end) = close_brace {
                 let content = &text[1..end];
-                // split by '/' at bracket-level 0 (respecting nested [...])
+                // split by '/' at bracket-depth 0
                 let mut parts: Vec<&str> = Vec::new();
                 let mut last = 0;
                 let mut blk = 0i32;
                 for (idx, c) in content.char_indices() {
                     if c == '[' { blk += 1; }
                     else if c == ']' { blk -= 1; }
-                    else if c == '/' && blk == 0 {
-                        parts.push(&content[last..idx]);
-                        last = idx + 1; // '/' is always 1 byte
-                    }
+                    else if c == '/' && blk == 0 { parts.push(&content[last..idx]); last = idx + 1; }
                 }
                 parts.push(&content[last..]);
+                let token = &text[..end + 1]; // whole {…} for position
 
                 if parts.len() >= 2 {
-                    let base = parts[0];
+                    let base  = parts[0];
                     let notes = &parts[1..];
-                    
-                    // Detect Anno vs Ruby confusion:
-                    // {漢字/かんじ} with single purely-kana note → likely should be [漢字/かんじ]
-                    if notes.len() == 1 && contains_kanji(base) && is_purely_kana_or_punct(notes[0]) {
-                        warnings.push(format!(
-                            "Anno '{{{}/{}}}' looks like a Ruby reading. Did you mean '[{}/{}]'?",
-                            base, notes[0], base, notes[0]
-                        ));
+
+                    // ── Lint checks ───────────────────────────────────────────
+                    if base.is_empty() {
+                        ctx.warn(warnings, codes::ANNO_EMPTY_BASE,
+                            format!("Anno '{}': base text is empty.", content), token);
                     }
-                    // Emit: Start(Anno), parse base, then AnnoNote events for each note
+                    // {漢字/かな} — single purely-kana note looks like ruby
+                    if notes.len() == 1 && contains_kanji(base) && is_purely_kana_or_punct(notes[0]) {
+                        ctx.warn(warnings, codes::ANNO_LOOKS_LIKE_RUBY,
+                            format!("Anno '{{{}/{}}}' looks like a Ruby reading. Did you mean '[{}/{}]'?",
+                                base, notes[0], base, notes[0]),
+                            token);
+                    }
                     let notes_owned: Vec<&str> = notes.to_vec();
                     events.push(Event::Start(Tag::Anno(notes_owned.clone())));
-                    parse_inline(base, events, warnings, true, fn_defs, fn_refs);
+                    parse_inline(base, events, warnings, ctx, true, fn_defs, fn_refs);
                     for note in notes_owned.iter() {
                         events.push(Event::Start(Tag::AnnoNote));
-                        parse_inline(note, events, warnings, true, fn_defs, fn_refs);
+                        parse_inline(note, events, warnings, ctx, true, fn_defs, fn_refs);
                         events.push(Event::End(Tag::AnnoNote));
                     }
                     events.push(Event::End(Tag::Anno(notes_owned)));
                     text = &text[end + 1..];
                     continue;
                 }
+                // {text} with no '/' — fall through to plain text
             } else {
                 let snippet: String = text.chars().take(30).collect();
-                warnings.push(format!("Possibly malformed anno syntax: '{{' with no matching '}}' near '{}'.", snippet));
+                ctx.warn(warnings, codes::ANNO_MALFORMED,
+                    format!("Possibly malformed anno syntax: '{{' with no matching '}}' near '{}'.", snippet),
+                    text);
             }
         }
 
         // Plain text up to next special character
-        let next_special = text.find(|c| matches!(c, '$' | '[' | '{' | '`' | '\\' | '*' | '~' | '!')).unwrap_or(text.len());
+        let next_special = text
+            .find(|c| matches!(c, '$' | '[' | '{' | '`' | '\\' | '*' | '~' | '!'))
+            .unwrap_or(text.len());
+
         if next_special == 0 {
             let ch = text.chars().next().unwrap();
             let len = ch.len_utf8();
             let t = &text[..len];
-            events.push(Event::Text(t));
             if !in_annotation && contains_kanji(t) {
-                warnings.push(format!("Kanji without ruby found in text: '{}'", t.trim()));
+                ctx.warn(warnings, codes::KANJI_NO_RUBY,
+                    format!("Kanji without ruby: '{}'", t.trim()), t);
             }
+            events.push(Event::Text(t));
             text = &text[len..];
         } else {
             let t = &text[..next_special];
-            events.push(Event::Text(t));
             if !in_annotation && contains_kanji(t) {
-                warnings.push(format!("Kanji without ruby found in text: '{}'", t.trim()));
+                ctx.warn(warnings, codes::KANJI_NO_RUBY,
+                    format!("Kanji without ruby: '{}'", t.trim()), t);
             }
+            events.push(Event::Text(t));
             text = &text[next_special..];
         }
     }

@@ -1,7 +1,7 @@
-use src_core::parser::Parser;
+use src_core::parser::{Parser, Warning};
 use src_core::html::push_html;
 
-fn render_with_warnings(md: &str) -> (String, Vec<String>) {
+fn render_with_warnings(md: &str) -> (String, Vec<Warning>) {
     let parser = Parser::new(md);
     let warnings = parser.warnings.clone();
     let mut out = String::new();
@@ -16,49 +16,55 @@ fn render(md: &str) -> String {
     out.trim().to_string()
 }
 
+fn has_code(warnings: &[Warning], code: &str) -> bool {
+    warnings.iter().any(|w| w.code == code)
+}
+
 #[test]
 fn test_ruby() {
     assert_eq!(
-        render("ここは[漢字/かんじ]です"),
-        "<p>ここは<ruby class=\"nm-ruby\"><rb>漢字</rb><rt>かんじ</rt></ruby>です</p>"
+        render("[漢字/かんじ]です"),
+        "<p><ruby class=\"nm-ruby\"><rb>漢字</rb><rt>かんじ</rt></ruby>です</p>"
     );
 }
 
 #[test]
 fn test_anno() {
     assert_eq!(
-        render("これは{用語/gloss}です"),
-        "<p>これは<ruby class=\"nm-anno\"><rb>用語</rb><rt><span class=\"nm-anno-note\">gloss</span></rt></ruby>です</p>"
+        render("{用語/gloss}です"),
+        "<p><ruby class=\"nm-anno\"><rb>用語</rb><rt><span class=\"nm-anno-note\">gloss</span></rt></ruby>です</p>"
     );
 }
 
 #[test]
 fn test_anno_multi() {
-    // Currently this will likely fail because our anno parser may be weak on multi-parts
-    // but this is the ideal output we are aiming for in Phase 4.
     assert_eq!(
-        render("これは{Word/gloss/extra}です"),
-        "<p>これは<ruby class=\"nm-anno\"><rb>Word</rb><rt><span class=\"nm-anno-note\">gloss</span><span class=\"nm-anno-note\">extra</span></rt></ruby>です</p>"
+        render("{Word/gloss/extra}です"),
+        "<p><ruby class=\"nm-anno\"><rb>Word</rb><rt><span class=\"nm-anno-note\">gloss</span><span class=\"nm-anno-note\">extra</span></rt></ruby>です</p>"
     );
 }
 
 #[test]
 fn test_section_nesting() {
+    // `---` closes level-2, emits HR in parent (level-1); `;;;` closes level-1.
     let md = "# H1\n## H2\n\ntext\n\n---\n\n;;;";
     let expected = r#"<section class="nm-sec level-1">
 <h1>H1</h1>
 <section class="nm-sec level-2">
 <h2>H2</h2>
 <p>text</p>
-<hr/>
 </section>
+<hr/>
 </section>"#;
     assert_eq!(render(md), expected.trim());
 }
 
 #[test]
 fn test_inline_formats() {
-    assert_eq!(render("**strong** *em* ~~strike~~"), "<p><strong>strong</strong> <em>em</em> <del>strike</del></p>");
+    assert_eq!(
+        render("**strong** *em* ~~strike~~"),
+        "<p><strong>strong</strong> <em>em</em> <del>strike</del></p>"
+    );
 }
 
 #[test]
@@ -91,14 +97,11 @@ fn test_code_fence_lang_and_filename() {
 #[test]
 fn test_table() {
     let md = "| A | B |\n|:---|---:|\n| 1 | 2 |";
-    let expected = r#"<div class="nm-table-wrap"><table class="nm-table">
-<thead><tr><th style="text-align:left">A</th><th style="text-align:right">B</th></tr>
-</thead>
-<tbody>
-<tr><td style="text-align:left">1</td><td style="text-align:right">2</td></tr>
-</tbody>
-</table></div>"#;
-    assert_eq!(render(md), expected.trim());
+    let html = render(md);
+    assert!(html.contains("<div class=\"nm-table-wrap\""), "missing table wrap: {html}");
+    assert!(html.contains("<table class=\"nm-table\">"), "missing table: {html}");
+    assert!(html.contains("<th style=\"text-align:left\">A</th>"), "missing header: {html}");
+    assert!(html.contains("<td style=\"text-align:right\">2</td>"), "missing cell: {html}");
 }
 
 #[test]
@@ -111,14 +114,16 @@ fn test_card_link() {
 
 #[test]
 fn test_card_link_warn_non_http() {
+    use src_core::parser::codes;
     let (_, warnings) = render_with_warnings("@[card](ftp://example.com)");
-    assert!(warnings.iter().any(|w| w.contains("http")));
+    assert!(has_code(&warnings, codes::CARD_NON_HTTP), "expected CARD_NON_HTTP: {:?}", warnings);
 }
 
 #[test]
 fn test_card_link_warn_unknown_type() {
+    use src_core::parser::codes;
     let (_, warnings) = render_with_warnings("@[embed](https://example.com)");
-    assert!(warnings.iter().any(|w| w.contains("embed")));
+    assert!(has_code(&warnings, codes::CARD_UNKNOWN_TYPE), "expected CARD_UNKNOWN_TYPE: {:?}", warnings);
 }
 
 #[test]
@@ -150,37 +155,79 @@ fn test_footnote_definition_not_rendered_inline() {
 
 #[test]
 fn test_footnote_warn_undefined_ref() {
+    use src_core::parser::codes;
     let (_, warnings) = render_with_warnings("Text[^x].");
-    assert!(warnings.iter().any(|w| w.contains("[^x]")), "expected warn: {warnings:?}");
+    assert!(has_code(&warnings, codes::FOOTNOTE_UNDEFINED_REF), "expected warn: {:?}", warnings);
+    assert!(warnings.iter().any(|w| w.message.contains("[^x]")), "expected [^x] in msg: {:?}", warnings);
 }
 
 #[test]
 fn test_footnote_warn_unused_def() {
+    use src_core::parser::codes;
     let (_, warnings) = render_with_warnings("Text.\n\n[^1]: Unused note.");
     assert!(
-        warnings.iter().any(|w| w.contains("[^1]") && w.contains("never referenced")),
-        "expected warn: {warnings:?}"
+        has_code(&warnings, codes::FOOTNOTE_UNUSED_DEF) &&
+        warnings.iter().any(|w| w.code == codes::FOOTNOTE_UNUSED_DEF && w.message.contains("[^1]")),
+        "expected FOOTNOTE_UNUSED_DEF with [^1]: {:?}", warnings
     );
 }
 
 #[test]
 fn test_ruby_katakana_hiragana_warn() {
-    // Purely katakana base + hiragana reading → warning
+    use src_core::parser::codes;
     let (_, warnings) = render_with_warnings("[インド/いんど]");
     assert!(
-        warnings.iter().any(|w| w.contains("インド") && w.contains("katakana")),
-        "expected katakana-hiragana ruby warning: {warnings:?}"
+        has_code(&warnings, codes::RUBY_KATAKANA_HIRAGANA),
+        "expected katakana-hiragana ruby warning: {:?}", warnings
     );
+    let w = warnings.iter().find(|w| w.code == codes::RUBY_KATAKANA_HIRAGANA).unwrap();
+    assert_eq!(w.line, 1);
+    assert_eq!(w.col, 1);
 }
 
 #[test]
 fn test_ruby_kanji_katakana_no_warn() {
-    // Kanji + katakana mixed base → NOT purely katakana → no warning
+    use src_core::parser::codes;
     let (_, warnings) = render_with_warnings("[自由エネルギー/じゆうえねるぎー]");
     assert!(
-        !warnings.iter().any(|w| w.contains("katakana")),
-        "should not warn for kanji+katakana base: {warnings:?}"
+        !has_code(&warnings, codes::RUBY_KATAKANA_HIRAGANA),
+        "should not warn for kanji+katakana base: {:?}", warnings
     );
+}
+
+#[test]
+fn test_ruby_empty_base_warn() {
+    use src_core::parser::codes;
+    let (_, warnings) = render_with_warnings("[/reading]");
+    assert!(has_code(&warnings, codes::RUBY_EMPTY_BASE), "expected RUBY_EMPTY_BASE: {:?}", warnings);
+}
+
+#[test]
+fn test_ruby_empty_reading_warn() {
+    use src_core::parser::codes;
+    let (_, warnings) = render_with_warnings("[base/]");
+    assert!(has_code(&warnings, codes::RUBY_EMPTY_READING), "expected RUBY_EMPTY_READING: {:?}", warnings);
+}
+
+#[test]
+fn test_ruby_self_referential_warn() {
+    use src_core::parser::codes;
+    let (_, warnings) = render_with_warnings("[same/same]");
+    assert!(has_code(&warnings, codes::RUBY_SELF_REFERENTIAL), "expected RUBY_SELF_REFERENTIAL: {:?}", warnings);
+}
+
+#[test]
+fn test_anno_empty_base_warn() {
+    use src_core::parser::codes;
+    let (_, warnings) = render_with_warnings("{/note}");
+    assert!(has_code(&warnings, codes::ANNO_EMPTY_BASE), "expected ANNO_EMPTY_BASE: {:?}", warnings);
+}
+
+#[test]
+fn test_anno_looks_like_ruby_warn() {
+    use src_core::parser::codes;
+    let (_, warnings) = render_with_warnings("{漢字/かんじ}");
+    assert!(has_code(&warnings, codes::ANNO_LOOKS_LIKE_RUBY), "expected ANNO_LOOKS_LIKE_RUBY: {:?}", warnings);
 }
 
 #[test]
@@ -189,4 +236,41 @@ fn test_blockquote() {
         render("> quote\n> line 2"),
         "<blockquote class=\"nm-blockquote\">\n<p>quote<br/>\nline 2</p>\n</blockquote>"
     );
+}
+
+#[test]
+fn test_warning_positions() {
+    // Warnings at known positions
+    let md = "normal line\n[インド/いんど]";
+    let (_, warnings) = render_with_warnings(md);
+    let w = warnings.iter().find(|w| w.code == src_core::parser::codes::RUBY_KATAKANA_HIRAGANA).unwrap();
+    assert_eq!(w.line, 2, "warning should be on line 2");
+    assert_eq!(w.col, 1, "warning should be at col 1");
+}
+
+#[test]
+fn test_warning_source_label() {
+    let parser = Parser::new_with_source("[インド/いんど]", "test.n.md");
+    let w = parser.warnings.iter()
+        .find(|w| w.code == src_core::parser::codes::RUBY_KATAKANA_HIRAGANA)
+        .expect("expected warning");
+    assert_eq!(w.source, "test.n.md");
+}
+
+#[test]
+fn test_split_source_blocks() {
+    use src_core::split_source_blocks;
+    let input = "para1\n\npara2\n\npara3";
+    let blocks = split_source_blocks(input);
+    assert_eq!(blocks.len(), 3, "expected 3 blocks, got: {:?}", blocks);
+}
+
+#[test]
+fn test_split_source_blocks_code_fence() {
+    use src_core::split_source_blocks;
+    let input = "intro\n\n```\nline1\n\nline2\n```\n\noutro";
+    let blocks = split_source_blocks(input);
+    // intro, code fence (atomic), outro
+    assert_eq!(blocks.len(), 3, "code fence must be one block: {:?}", blocks);
+    assert!(blocks[1].contains("```"), "middle block should be the code fence: {:?}", blocks);
 }

@@ -5,8 +5,8 @@ extern crate alloc;
 pub mod parser;
 pub mod html;
 
-pub use parser::{Parser, Event, Tag};
-pub use html::push_html;
+pub use parser::{Parser, Event, Tag, Warning, fnv1a, split_source_blocks};
+pub use html::{push_html, push_html_with_ids};
 
 #[cfg(test)]
 mod tests {
@@ -17,10 +17,10 @@ mod tests {
     #[test]
     fn test_parser() {
         let markdown = "> block\n\n| H1 | H2 |\n|:---|---:|\n| **bold** | *italic* ~~strike~~ |\n\n[link](url) ![img](url)";
-        let parser = Parser::new(&markdown);
+        let parser = Parser::new(markdown);
         let mut html_output = String::new();
         push_html(&mut html_output, parser);
-        
+
         assert!(html_output.contains("<blockquote class=\"nm-blockquote\">"), "Missing blockquote");
         assert!(html_output.contains("<table class=\"nm-table\">"), "Missing table");
         assert!(html_output.contains("style=\"text-align:left\""), "Missing td align left");

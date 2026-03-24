@@ -1,0 +1,1 @@
+@[card](ftp://example.com)

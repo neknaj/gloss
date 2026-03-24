@@ -5,3 +5,6 @@ edition = "2021"
 
 [dependencies]
 latex2mathml = "0.2.3"
+
+[dev-dependencies]
+serde_json = "1"

@@ -114,22 +114,12 @@
         #preview ruby { ruby-align: center; }
         #preview rt { font-size: 0.5em; }
 
-        /* User refined styles */
-        /* 1. Inline math = body text color */
-        #preview .math-inline {
-            color: inherit;
-        }
-        /* 2. Ruby & Anno: only annotations (rt) are thinner/lighter */
-        #preview .nm-ruby rb, #preview .nm-anno rb {
-            opacity: 1;
-            font-weight: inherit;
-        }
-        #preview .nm-ruby rt, #preview .nm-anno rt {
-            color: inherit;
-            opacity: 0.8;
-            font-weight: 300;
-        }
-        /* 3. Code blocks = Fixed black bg, white text for both themes */
+        /* Inline math = body text color */
+        #preview .math-inline { color: inherit; }
+        /* Ruby & Anno: base text at full weight, reading/annotation lighter */
+        #preview .nm-ruby rb, #preview .nm-anno rb { opacity: 1; font-weight: inherit; }
+        #preview .nm-ruby rt, #preview .nm-anno rt { color: inherit; opacity: 0.8; font-weight: 300; }
+        /* Code blocks */
         #preview .nm-code, #preview .nm-code-inline {
             background-color: #1a1a1a !important;
             color: #f8f8f2 !important;
@@ -138,13 +128,27 @@
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
             line-height: 1.25;
         }
-        #preview pre.nm-code {
-            padding: 12px;
-            margin: 1em 0;
-            overflow-x: auto;
-            border: 1px solid #333;
-            line-height: 1.25;
+        #preview pre.nm-code { padding: 12px; margin: 1em 0; overflow-x: auto; border: 1px solid #333; line-height: 1.25; }
+
+        /* Warnings box */
+        #warnings-box {
+            display: none;
+            background: rgba(255,160,0,0.07);
+            border-left: 3px solid #ffa000;
+            color: #ffb300;
+            padding: 8px 12px;
+            margin: 0;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            overflow-y: auto;
+            max-height: 120px;
+            border-bottom: 1px solid var(--border);
         }
+        #warnings-box.has-warnings { display: block; }
+        .warn-item { padding: 1px 0; }
+        .warn-pos  { color: #888; margin-right: 4px; }
+        .warn-code { color: #f0a060; font-weight: bold; margin-right: 4px; }
+        .warn-msg  { color: #ffb300; }
     </style>
 </head>
 <body>
@@ -171,24 +175,26 @@
             <button id="theme-btn" title="テーマ切替">🌙 ダーク</button>
         </div>
     </div>
+    <div id="warnings-box"></div>
     <div class="container">
         <textarea id="editor" placeholder="Write Gloss Markdown here..."></textarea>
         <div id="preview"></div>
     </div>
     <script>
-        const preview = document.getElementById('preview');
-        const editor  = document.getElementById('editor');
-        const fontSelect  = document.getElementById('font-select');
-        const fontSizeEl  = document.getElementById('font-size');
+        const preview      = document.getElementById('preview');
+        const editor       = document.getElementById('editor');
+        const warningsBox  = document.getElementById('warnings-box');
+        const fontSelect   = document.getElementById('font-select');
+        const fontSizeEl   = document.getElementById('font-size');
         const fontSizeDisp = document.getElementById('font-size-display');
-        const themeBtn    = document.getElementById('theme-btn');
-        const html        = document.documentElement;
+        const themeBtn     = document.getElementById('theme-btn');
+        const htmlEl       = document.documentElement;
 
         // ── Theme toggle ──────────────────────────────────────────
         let isDark = true;
         themeBtn.addEventListener('click', () => {
             isDark = !isDark;
-            html.setAttribute('data-theme', isDark ? 'dark' : 'light');
+            htmlEl.setAttribute('data-theme', isDark ? 'dark' : 'light');
             themeBtn.textContent = isDark ? '🌙 ダーク' : '☀️ ライト';
         });
 
@@ -204,29 +210,114 @@
             fontSizeDisp.textContent = sz;
         });
 
-        // ── KaTeX rendering helper ─────────────────────────────────
-        function renderKaTeX() {
+        // ── KaTeX rendering ────────────────────────────────────────
+        // Renders math elements that haven't been rendered yet (no data-katex-tex set,
+        // or whose source TeX changed).
+        function renderKaTeX(root) {
             if (!document.getElementById('use-katex').checked || !window.katex) return;
-            preview.querySelectorAll('.math-inline, .math-display').forEach(el => {
+            (root || preview).querySelectorAll('.math-inline, .math-display').forEach(el => {
                 const texSpan = el.querySelector('.math-tex');
-                if (texSpan) {
-                    try {
-                        katex.render(texSpan.textContent, el, {
-                            displayMode: el.classList.contains('math-display'),
-                            throwOnError: false
-                        });
-                    } catch(e) { console.error('[JS] KaTeX error:', e); }
-                }
+                if (!texSpan) return;
+                const tex = texSpan.textContent;
+                if (el.dataset.katexTex === tex) return; // already rendered, unchanged
+                try {
+                    katex.render(tex, el, {
+                        displayMode: el.classList.contains('math-display'),
+                        throwOnError: false
+                    });
+                    el.dataset.katexTex = tex;
+                } catch(e) { console.error('[JS] KaTeX error:', e); }
             });
         }
 
+        // ── Morphdom-like DOM differ ───────────────────────────────
+        // Reconciles `preview` children against a new HTML string using data-bid keys.
+        // Blocks whose bid is unchanged are kept in place (preserving KaTeX state).
+        // New/changed blocks are inserted; removed blocks are deleted.
+        function applyDiff(newHtml) {
+            // Parse new HTML into a temporary container
+            const tmp = document.createElement('div');
+            tmp.innerHTML = newHtml;
+
+            const newChildren = Array.from(tmp.children);
+            const oldByBid = new Map();
+            for (const child of preview.children) {
+                const bid = child.dataset.bid;
+                if (bid) oldByBid.set(bid, child);
+            }
+
+            // Build the new child list, reusing unchanged nodes
+            const fragment = document.createDocumentFragment();
+            const toRenderKaTeX = [];
+            for (const newNode of newChildren) {
+                const bid = newNode.dataset.bid;
+                if (bid && oldByBid.has(bid)) {
+                    // Reuse existing node (keeps KaTeX rendered state)
+                    fragment.appendChild(oldByBid.get(bid));
+                    oldByBid.delete(bid);
+                } else {
+                    // New or changed block
+                    fragment.appendChild(newNode);
+                    toRenderKaTeX.push(newNode);
+                }
+            }
+
+            // Replace preview contents
+            preview.innerHTML = '';
+            preview.appendChild(fragment);
+
+            // Only re-render KaTeX for new/changed blocks
+            for (const node of toRenderKaTeX) {
+                renderKaTeX(node);
+            }
+        }
+
+        // ── Warnings display ───────────────────────────────────────
+        function showWarnings(warnings) {
+            if (!warnings || warnings.length === 0) {
+                warningsBox.className = '';
+                warningsBox.innerHTML = '';
+                return;
+            }
+            warningsBox.className = 'has-warnings';
+            warningsBox.innerHTML = warnings.map(w => {
+                const pos = `${w.source}:${w.line}:${w.col}`;
+                return `<div class="warn-item"><span class="warn-pos">${pos}</span><span class="warn-code">${escHtml(w.code)}</span><span class="warn-msg">${escHtml(w.message)}</span></div>`;
+            }).join('');
+        }
+
+        function escHtml(s) {
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ── Main render function ───────────────────────────────────
+        function render() {
+            if (typeof render_with_warnings !== 'function') return;
+            let result;
+            try {
+                result = JSON.parse(render_with_warnings(editor.value, 'playground.n.md'));
+            } catch(e) {
+                console.error('[JS] render_with_warnings failed:', e);
+                return;
+            }
+            applyDiff(result.html);
+            showWarnings(result.warnings);
+        }
+
         // ── Editor input → re-render ───────────────────────────────
+        let renderTimer = null;
         editor.addEventListener('input', () => {
-            setTimeout(renderKaTeX, 20);
+            clearTimeout(renderTimer);
+            renderTimer = setTimeout(render, 30);
         });
 
         document.getElementById('use-katex').addEventListener('change', () => {
-            editor.dispatchEvent(new Event('input'));
+            if (document.getElementById('use-katex').checked) {
+                renderKaTeX();
+            } else {
+                // Re-render fully to restore plain math spans
+                render();
+            }
         });
 
         // ── Load sample on WASM ready ──────────────────────────────
@@ -235,7 +326,7 @@
                 .then(r => r.text())
                 .then(text => {
                     editor.value = text;
-                    editor.dispatchEvent(new Event('input'));
+                    render();
                 })
                 .catch(err => console.warn('Could not load sample.n.md:', err));
         });

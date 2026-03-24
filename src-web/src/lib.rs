@@ -1,8 +1,43 @@
 use wasm_bindgen::prelude::*;
-use src_core::{Parser, push_html};
-use web_sys::{HtmlTextAreaElement, HtmlElement};
+use src_core::{Parser, push_html, push_html_with_ids, fnv1a, split_source_blocks};
 
-/// Render gloss markdown to HTML body fragment (callable from JS)
+// ── JSON helpers ──────────────────────────────────────────────────────────────
+
+fn json_str(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"'  => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            _    => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn warnings_to_json(warnings: &[src_core::Warning]) -> String {
+    let items: Vec<String> = warnings.iter().map(|w| {
+        format!(
+            "{{\"code\":{},\"message\":{},\"source\":{},\"line\":{},\"col\":{}}}",
+            json_str(w.code),
+            json_str(&w.message),
+            json_str(&w.source),
+            w.line,
+            w.col,
+        )
+    }).collect();
+    format!("[{}]", items.join(","))
+}
+
+// ── Public WASM API ───────────────────────────────────────────────────────────
+
+/// Render Gloss Markdown to a plain HTML fragment (no block IDs).
+/// Suitable for server-side / static use.
 #[wasm_bindgen]
 pub fn render_markdown(input: &str) -> String {
     let parser = Parser::new(input);
@@ -11,50 +46,44 @@ pub fn render_markdown(input: &str) -> String {
     out
 }
 
+/// Render and return a JSON string `{"html":"...","warnings":[...]}`.
+///
+/// The `html` value contains `data-bid` attributes on block-level elements,
+/// enabling the JS side to do morphdom-style differential DOM updates.
+///
+/// Each warning: `{code, message, source, line, col}`.
+#[wasm_bindgen]
+pub fn render_with_warnings(input: &str, source: &str) -> String {
+    let parser = Parser::new_with_source(input, source);
+    let warnings_json = warnings_to_json(&parser.warnings);
+    let mut html = String::new();
+    push_html_with_ids(&mut html, parser);
+    format!("{{\"html\":{},\"warnings\":{}}}", json_str(&html), warnings_json)
+}
+
+/// Return a JSON array of FNV-1a hex hashes, one per source block.
+/// JS can compare successive calls to detect which blocks changed.
+#[wasm_bindgen]
+pub fn source_block_hashes(input: &str) -> String {
+    let blocks = split_source_blocks(input);
+    let hashes: Vec<String> = blocks.iter()
+        .map(|b| format!("\"{}\"", format!("{:x}", fnv1a(b))))
+        .collect();
+    format!("[{}]", hashes.join(","))
+}
+
+// ── WASM entry point ─────────────────────────────────────────────────────────
+
+/// Called automatically when the WASM module loads.
+/// Sets up the panic hook and fires a `wasm-ready` event so JS can start.
 #[wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
 
+    // Signal JS that WASM is ready; JS handles all DOM wiring from here.
     let window = web_sys::window().expect("no global `window` exists");
-    let document = window.document().expect("should have a document on window");
-
-    let editor = document
-        .get_element_by_id("editor")
-        .expect("no editor found")
-        .dyn_into::<HtmlTextAreaElement>()?;
-    let preview = document
-        .get_element_by_id("preview")
-        .expect("no preview found")
-        .dyn_into::<HtmlElement>()?;
-
-    // Wire the input event listener for live rendering
-    let render_editor = editor.clone();
-    let render_preview = preview.clone();
-    let render = Closure::<dyn FnMut()>::new(move || {
-        let markdown = render_editor.value();
-        let parser = Parser::new(&markdown);
-        let mut html_output = String::new();
-        
-        if !parser.warnings.is_empty() {
-            html_output.push_str("<div class=\"nm-warnings-box\" style=\"background:rgba(255,160,0,0.1);border:1px solid #ffa000;color:#ffb300;padding:8px;margin-bottom:16px;border-radius:6px;\">\n");
-            for w in &parser.warnings {
-                let esc = w.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-                html_output.push_str(&format!("<div style=\"font-size:0.9em;margin-bottom:4px;\">⚠️ {}</div>\n", esc));
-            }
-            html_output.push_str("</div>\n");
-        }
-        
-        push_html(&mut html_output, parser);
-        render_preview.set_inner_html(&html_output);
-    });
-
-    editor.add_event_listener_with_callback("input", render.as_ref().unchecked_ref())?;
-
-    // Dispatch a custom event so JS knows WASM is ready (JS will then fetch sample and set value)
     let event = web_sys::Event::new("wasm-ready")?;
     window.dispatch_event(&event)?;
-
-    render.forget();
 
     Ok(())
 }

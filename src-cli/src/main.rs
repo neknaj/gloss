@@ -145,11 +145,13 @@ fn main() {
         }
     };
 
-    let parser = Parser::new(&text);
-    
+    let source = input_path.to_string();
+    let parser = Parser::new_with_source(&text, &source);
+
     if !parser.warnings.is_empty() {
         for w in &parser.warnings {
-            eprintln!("\x1b[33m{}\x1b[0m", w);
+            eprintln!("\x1b[33m[{}:{}:{}] {} — {}\x1b[0m",
+                w.source, w.line, w.col, w.code, w.message);
         }
     }
 
