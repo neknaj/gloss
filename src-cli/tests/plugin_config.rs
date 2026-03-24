@@ -55,3 +55,16 @@ fn config_parse_error_returns_default() {
     let cfg = GlossConfig::from_file(f.path().to_str().unwrap());
     assert!(cfg.plugins.is_empty()); // fell back to default
 }
+
+#[test]
+fn from_file_parses_toml_lint_rules() {
+    // Verifies actual TOML format: lint rules are direct keys under [lint]
+    // (e.g. `[lint]\nkanji-no-ruby = false`)
+    use std::io::Write;
+    let mut f = tempfile::NamedTempFile::new().unwrap();
+    write!(f, "[lint]\nkanji-no-ruby = false\nruby-malformed = false\n").unwrap();
+    let cfg = GlossConfig::from_file(f.path().to_str().unwrap());
+    assert!(!cfg.lint.is_enabled("kanji-no-ruby"));
+    assert!(!cfg.lint.is_enabled("ruby-malformed"));
+    assert!(cfg.lint.is_enabled("anno-malformed")); // not in file → enabled
+}
