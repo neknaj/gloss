@@ -55,20 +55,21 @@ impl GlossPluginHost {
         lang: &str,
         code: &str,
         filename: &str,
-        config: serde_json::Value,
     ) -> Option<String> {
-        let input = CodeHighlightInput {
-            lang: lang.to_string(),
-            code: code.to_string(),
-            filename: filename.to_string(),
-            config,
-        };
-        let json = serde_json::to_string(&input).ok()?;
-
         for p in &mut self.plugins {
             if !p.hooks.iter().any(|h| h == "code-highlight") {
                 continue;
             }
+            let input = CodeHighlightInput {
+                lang: lang.to_string(),
+                code: code.to_string(),
+                filename: filename.to_string(),
+                config: p.config.clone(),
+            };
+            let json = match serde_json::to_string(&input) {
+                Ok(j) => j,
+                Err(_) => continue,
+            };
             match p.instance.call::<&str, String>("code_highlight", &json) {
                 Ok(raw) => {
                     match serde_json::from_str::<CodeHighlightOutput>(&raw) {
@@ -86,15 +87,16 @@ impl GlossPluginHost {
     pub fn run_card_link(
         &mut self,
         url: &str,
-        config: serde_json::Value,
     ) -> Option<CardLinkOutput> {
-        let input = CardLinkInput { url: url.to_string(), config };
-        let json = serde_json::to_string(&input).ok()?;
-
         for p in &mut self.plugins {
             if !p.hooks.iter().any(|h| h == "card-link") {
                 continue;
             }
+            let input = CardLinkInput { url: url.to_string(), config: p.config.clone() };
+            let json = match serde_json::to_string(&input) {
+                Ok(j) => j,
+                Err(_) => continue,
+            };
             match p.instance.call::<&str, String>("card_link", &json) {
                 Ok(raw) => {
                     match serde_json::from_str::<CardLinkOutput>(&raw) {
@@ -158,19 +160,20 @@ impl GlossPluginHost {
         &mut self,
         fields: &[PluginFrontMatterField],
         source: &str,
-        config: serde_json::Value,
     ) -> Option<String> {
-        let input = FrontMatterInput {
-            fields: fields.to_vec(),
-            source: source.to_string(),
-            config,
-        };
-        let json = serde_json::to_string(&input).ok()?;
-
         for p in &mut self.plugins {
             if !p.hooks.iter().any(|h| h == "front-matter") {
                 continue;
             }
+            let input = FrontMatterInput {
+                fields: fields.to_vec(),
+                source: source.to_string(),
+                config: p.config.clone(),
+            };
+            let json = match serde_json::to_string(&input) {
+                Ok(j) => j,
+                Err(_) => continue,
+            };
             match p.instance.call::<&str, String>("front_matter", &json) {
                 Ok(raw) => {
                     match serde_json::from_str::<FrontMatterOutput>(&raw) {
@@ -192,9 +195,9 @@ mod tests {
     #[test]
     fn empty_host_returns_none_for_all_hooks() {
         let mut host = GlossPluginHost { plugins: vec![] };
-        assert!(host.run_code_highlight("rust", "fn main(){}", "", serde_json::Value::Null).is_none());
-        assert!(host.run_card_link("https://example.com", serde_json::Value::Null).is_none());
-        assert!(host.run_front_matter(&[], "", serde_json::Value::Null).is_none());
+        assert!(host.run_code_highlight("rust", "fn main(){}", "").is_none());
+        assert!(host.run_card_link("https://example.com").is_none());
+        assert!(host.run_front_matter(&[], "").is_none());
     }
 
     #[test]

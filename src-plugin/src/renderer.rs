@@ -2,16 +2,14 @@ use src_core::html::HtmlRenderer;
 use src_core::parser::{Event, Tag};
 use src_plugin_types::{PluginFrontMatterField, CardLinkOutput};
 use crate::host::GlossPluginHost;
-use crate::config::GlossConfig;
 
 pub struct PluginAwareRenderer<'host> {
     host: &'host mut GlossPluginHost,
-    cfg: &'host GlossConfig,
 }
 
 impl<'host> PluginAwareRenderer<'host> {
-    pub fn new(host: &'host mut GlossPluginHost, cfg: &'host GlossConfig) -> Self {
-        Self { host, cfg }
+    pub fn new(host: &'host mut GlossPluginHost, _cfg: &'host crate::config::GlossConfig) -> Self {
+        Self { host }
     }
 
     /// Render `events` (collected from a `Parser`) into HTML.
@@ -35,8 +33,7 @@ impl<'host> PluginAwareRenderer<'host> {
                     let pfields: Vec<PluginFrontMatterField> = fields.iter().map(|f| {
                         PluginFrontMatterField { key: f.key.to_string(), raw: f.raw.to_string() }
                     }).collect();
-                    let plugin_config = self.find_plugin_config("front-matter");
-                    let result = self.host.run_front_matter(&pfields, source, plugin_config);
+                    let result = self.host.run_front_matter(&pfields, source);
                     if let Some(html) = result {
                         out.push_str(&html);
                     } else {
@@ -72,8 +69,7 @@ impl<'host> PluginAwareRenderer<'host> {
                             _ => { i += 1; }
                         }
                     }
-                    let plugin_config = self.find_plugin_config("code-highlight");
-                    let result = self.host.run_code_highlight(&lang, &code_text, &filename, plugin_config);
+                    let result = self.host.run_code_highlight(&lang, &code_text, &filename);
                     if let Some(html) = result {
                         out.push_str(&html);
                     } else {
@@ -90,8 +86,7 @@ impl<'host> PluginAwareRenderer<'host> {
                         Event::CardLink(u) => u.to_string(),
                         _ => unreachable!(),
                     };
-                    let plugin_config = self.find_plugin_config("card-link");
-                    let result = self.host.run_card_link(&url, plugin_config);
+                    let result = self.host.run_card_link(&url);
                     if let Some(card_out) = result {
                         out.push_str(&render_card_output(&url, card_out));
                     } else {
@@ -111,14 +106,6 @@ impl<'host> PluginAwareRenderer<'host> {
         renderer.finish(out, start_len);
     }
 
-    /// Find per-plugin config for the given hook from the config's plugin list.
-    /// Returns Null if no matching plugin found.
-    fn find_plugin_config(&self, hook: &str) -> serde_json::Value {
-        self.cfg.plugins.iter()
-            .find(|p| p.hooks.iter().any(|h| h == hook))
-            .map(|p| p.config.clone())
-            .unwrap_or(serde_json::Value::Null)
-    }
 }
 
 /// Render a `CardLinkOutput` to HTML.
@@ -128,6 +115,8 @@ fn render_card_output(url: &str, out: CardLinkOutput) -> String {
 
     // Priority 1: full HTML override
     if let Some(html) = out.html {
+        // TRUST: plugin-provided HTML is emitted verbatim by design; plugins are
+        // local WASM files under explicit user configuration (see §5.5 of the spec).
         return html;
     }
 

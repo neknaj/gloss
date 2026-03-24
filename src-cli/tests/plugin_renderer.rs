@@ -23,16 +23,30 @@ fn renders_paragraph_without_plugins() {
 
 #[test]
 fn renders_code_block_without_plugins() {
-    let html = render_no_plugins("```rust\nfn main() {}\n```");
-    assert!(html.contains("nm-code"), "got: {html}");
-    assert!(html.contains("fn main()"), "got: {html}");
+    use src_core::html::push_html;
+    let markdown = "```rust\nfn main() {}\n```";
+    let expected = {
+        let parser = Parser::new_with_source(markdown, "test.n.md");
+        let mut out = String::new();
+        push_html(&mut out, parser);
+        out
+    };
+    let html = render_no_plugins(markdown);
+    assert_eq!(html, expected, "got: {html}");
 }
 
 #[test]
 fn renders_card_link_without_plugins() {
-    let html = render_no_plugins("@[card](https://example.com)");
-    assert!(html.contains("nm-card-link"), "got: {html}");
-    assert!(html.contains("example.com"), "got: {html}");
+    use src_core::html::push_html;
+    let markdown = "@[card](https://example.com)";
+    let expected = {
+        let parser = Parser::new_with_source(markdown, "test.n.md");
+        let mut out = String::new();
+        push_html(&mut out, parser);
+        out
+    };
+    let html = render_no_plugins(markdown);
+    assert_eq!(html, expected, "got: {html}");
 }
 
 #[test]
