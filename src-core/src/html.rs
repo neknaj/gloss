@@ -3,45 +3,64 @@ use alloc::vec::Vec;
 use alloc::format;
 use crate::parser::{Event, Tag, Parser, Alignment, FrontMatterField};
 
-/// Render to HTML without block IDs (for CLI / tests / snapshot comparison).
-pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
-    push_html_inner(out, iter, false);
+/// Stateful HTML emitter. Feed events one at a time with `feed()`,
+/// then call `finish()` after the last event to flush pending front matter.
+pub struct HtmlRenderer {
+    block_ids: bool,
+    in_thead: bool,
+    in_anno: bool,
+    anno_rb_closed: bool,
+    pending_bid: Option<u64>,
+    pending_fm: Option<String>,
+    fm_emitted: bool,
 }
 
-/// Render to HTML with `data-bid` attributes on block-level elements.
-/// Used by the web playground for differential DOM patching.
-pub fn push_html_with_ids<'a>(out: &mut String, iter: Parser<'a>) {
-    push_html_inner(out, iter, true);
-}
+impl HtmlRenderer {
+    pub fn new(block_ids: bool) -> Self {
+        Self {
+            block_ids,
+            in_thead: false,
+            in_anno: false,
+            anno_rb_closed: false,
+            pending_bid: None,
+            pending_fm: None,
+            fm_emitted: false,
+        }
+    }
 
-fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
-    let mut in_thead = false;
-    let mut in_anno = false;
-    let mut anno_rb_closed = false;
-    let mut pending_bid: Option<u64> = None;
-    let mut pending_fm: Option<String> = None;  // front matter HTML, buffered until after H1
-    let mut fm_emitted = false;
-    let start_len = out.len(); // used to prepend fm if there is no H1
+    /// Emit HTML for one event into `out`.
+    pub fn feed<'a>(&mut self, event: Event<'a>, out: &mut String) {
+        self.handle_event(event, out);
+    }
 
-    // Returns `data-bid="HEX"` or `""` depending on the `block_ids` flag.
-    let take_bid = |pending: &mut Option<u64>| -> String {
-        if block_ids {
-            if let Some(id) = pending.take() {
+    /// Call after all events. If no H1 was seen, prepends buffered
+    /// front matter to the slice of `out` starting at `start_len`.
+    pub fn finish(&mut self, out: &mut String, start_len: usize) {
+        if let Some(fm) = self.pending_fm.take() {
+            let content = out.split_off(start_len);
+            out.push_str(&fm);
+            out.push_str(&content);
+        }
+    }
+
+    fn take_bid(&mut self) -> String {
+        if self.block_ids {
+            if let Some(id) = self.pending_bid.take() {
                 return format!(" data-bid=\"{:x}\"", id);
             }
         } else {
-            pending.take();   // discard
+            self.pending_bid.take();
         }
         String::new()
-    };
+    }
 
-    for event in iter {
+    fn handle_event<'a>(&mut self, event: Event<'a>, out: &mut String) {
         match event {
             Event::FrontMatter(fields) => {
-                pending_fm = Some(render_frontmatter(&fields));
+                self.pending_fm = Some(render_frontmatter(&fields));
             }
             Event::BlockId(id) => {
-                pending_bid = Some(id);
+                self.pending_bid = Some(id);
             }
             Event::Text(t) => out.push_str(&escape_html(t)),
             Event::SoftBreak => out.push('\n'),
@@ -70,18 +89,18 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
                 ));
             }
             Event::Start(Tag::Paragraph) => {
-                out.push_str(&format!("<p{}>", take_bid(&mut pending_bid)));
+                out.push_str(&format!("<p{}>", self.take_bid()));
             }
             Event::End(Tag::Paragraph) => out.push_str("</p>\n"),
             Event::Start(Tag::Heading(level)) => {
-                out.push_str(&format!("<h{}{}>", level, take_bid(&mut pending_bid)));
+                out.push_str(&format!("<h{}{}>", level, self.take_bid()));
             }
             Event::End(Tag::Heading(level)) => {
                 out.push_str(&format!("</h{}>\n", level));
                 // Emit front matter directly after the first H1
-                if level == 1 && !fm_emitted {
-                    fm_emitted = true;
-                    if let Some(fm) = pending_fm.take() {
+                if level == 1 && !self.fm_emitted {
+                    self.fm_emitted = true;
+                    if let Some(fm) = self.pending_fm.take() {
                         out.push_str(&fm);
                     }
                 }
@@ -91,11 +110,11 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
             }
             Event::End(Tag::Section(_)) => out.push_str("</section>\n"),
             Event::Start(Tag::List(true)) => {
-                out.push_str(&format!("<ol{}>\n", take_bid(&mut pending_bid)));
+                out.push_str(&format!("<ol{}>\n", self.take_bid()));
             }
             Event::End(Tag::List(true)) => out.push_str("</ol>\n"),
             Event::Start(Tag::List(false)) => {
-                out.push_str(&format!("<ul{}>\n", take_bid(&mut pending_bid)));
+                out.push_str(&format!("<ul{}>\n", self.take_bid()));
             }
             Event::End(Tag::List(false)) => out.push_str("</ul>\n"),
             Event::Start(Tag::Item) => out.push_str("<li>"),
@@ -104,7 +123,7 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
             Event::End(Tag::Code) => out.push_str("</code>"),
             Event::Start(Tag::CodeBlock(lang, filename)) => {
                 let has_header = !lang.is_empty() || !filename.is_empty();
-                let bid = take_bid(&mut pending_bid);
+                let bid = self.take_bid();
                 if has_header {
                     out.push_str(&format!(
                         "<div class=\"nm-code-container\"{bid}><div class=\"nm-code-header\">"
@@ -135,23 +154,23 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
             Event::Start(Tag::Blockquote) => {
                 out.push_str(&format!(
                     "<blockquote class=\"nm-blockquote\"{}>\n",
-                    take_bid(&mut pending_bid)
+                    self.take_bid()
                 ));
             }
             Event::End(Tag::Blockquote) => out.push_str("</blockquote>\n"),
             Event::Start(Tag::Table(_)) => {
                 out.push_str(&format!(
                     "<div class=\"nm-table-wrap\"{} ><table class=\"nm-table\">\n",
-                    take_bid(&mut pending_bid)
+                    self.take_bid()
                 ));
             }
             Event::End(Tag::Table(_)) => out.push_str("</tbody>\n</table></div>\n"),
             Event::Start(Tag::TableHead) => {
-                in_thead = true;
+                self.in_thead = true;
                 out.push_str("<thead>");
             }
             Event::End(Tag::TableHead) => {
-                in_thead = false;
+                self.in_thead = false;
                 out.push_str("</thead>\n<tbody>\n");
             }
             Event::Start(Tag::TableRow) => out.push_str("<tr>"),
@@ -163,12 +182,12 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
                     Alignment::Right  => " style=\"text-align:right\"",
                     Alignment::None   => "",
                 };
-                if in_thead { out.push_str(&format!("<th{}>", style)); }
-                else        { out.push_str(&format!("<td{}>", style)); }
+                if self.in_thead { out.push_str(&format!("<th{}>", style)); }
+                else              { out.push_str(&format!("<td{}>", style)); }
             }
             Event::End(Tag::TableCell(_)) => {
-                if in_thead { out.push_str("</th>"); }
-                else        { out.push_str("</td>"); }
+                if self.in_thead { out.push_str("</th>"); }
+                else              { out.push_str("</td>"); }
             }
             Event::Start(Tag::Strong)        => out.push_str("<strong>"),
             Event::End(Tag::Strong)          => out.push_str("</strong>"),
@@ -194,21 +213,21 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
             }
             // Anno
             Event::Start(Tag::Anno(_)) => {
-                in_anno = true;
-                anno_rb_closed = false;
+                self.in_anno = true;
+                self.anno_rb_closed = false;
                 out.push_str("<ruby class=\"nm-anno\"><rb>");
             }
             Event::End(Tag::Anno(_)) => {
-                if in_anno && !anno_rb_closed {
+                if self.in_anno && !self.anno_rb_closed {
                     out.push_str("</rb><rt>");
                 }
-                in_anno = false;
+                self.in_anno = false;
                 out.push_str("</rt></ruby>");
             }
             Event::Start(Tag::AnnoNote) => {
-                if !anno_rb_closed {
+                if !self.anno_rb_closed {
                     out.push_str("</rb><rt>");
-                    anno_rb_closed = true;
+                    self.anno_rb_closed = true;
                 }
                 out.push_str("<span class=\"nm-anno-note\">");
             }
@@ -232,13 +251,26 @@ fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
             }
         }
     }
+}
 
-    // No H1 was found — prepend front matter at the very start of our output
-    if let Some(fm) = pending_fm {
-        let content = out.split_off(start_len);
-        out.push_str(&fm);
-        out.push_str(&content);
+/// Render to HTML without block IDs (for CLI / tests / snapshot comparison).
+pub fn push_html<'a>(out: &mut String, iter: Parser<'a>) {
+    push_html_inner(out, iter, false);
+}
+
+/// Render to HTML with `data-bid` attributes on block-level elements.
+/// Used by the web playground for differential DOM patching.
+pub fn push_html_with_ids<'a>(out: &mut String, iter: Parser<'a>) {
+    push_html_inner(out, iter, true);
+}
+
+fn push_html_inner<'a>(out: &mut String, iter: Parser<'a>, block_ids: bool) {
+    let start_len = out.len();
+    let mut renderer = HtmlRenderer::new(block_ids);
+    for event in iter {
+        renderer.feed(event, out);
     }
+    renderer.finish(out, start_len);
 }
 
 // ── Front matter rendering ────────────────────────────────────────────────────
