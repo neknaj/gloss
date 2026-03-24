@@ -1,0 +1,7 @@
+[package]
+name = "src-editor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+src-desktop-types = { path = "../src-desktop-types" }
