@@ -75,6 +75,7 @@ impl GapBuffer {
     // ── Public API ─────────────────────────────────────────────────────────
 
     pub fn insert(&mut self, byte_pos: usize, text: &str) {
+        debug_assert!(byte_pos <= self.len_bytes(), "insert position out of bounds");
         let bytes = text.as_bytes();
         self.ensure_gap(bytes.len());
         self.move_gap(byte_pos);
@@ -83,9 +84,11 @@ impl GapBuffer {
     }
 
     pub fn delete(&mut self, byte_range: Range<usize>) -> String {
+        debug_assert!(byte_range.end <= self.len_bytes(), "delete end out of bounds");
         let start = byte_range.start;
         let end   = byte_range.end;
         self.move_gap(start);
+        debug_assert!(end - start <= self.buf.len() - self.gap_end, "delete range exceeds buffer");
         let deleted = core::str::from_utf8(&self.buf[self.gap_end..self.gap_end + (end - start)])
             .unwrap_or("")
             .to_string();
@@ -97,7 +100,7 @@ impl GapBuffer {
     /// Takes `&mut self` because it moves the gap.
     pub fn slice(&mut self, byte_range: Range<usize>) -> &str {
         // Move gap out of the requested range.
-        if self.gap_start > byte_range.start && self.gap_start < byte_range.end {
+        if self.gap_start >= byte_range.start && self.gap_start < byte_range.end {
             // Gap overlaps — move it past the end.
             self.move_gap(byte_range.end);
         }
