@@ -13,3 +13,6 @@ dist/
 
 # Mac
 .DS_Store
+
+# Git worktrees
+.worktrees/
