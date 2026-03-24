@@ -9,3 +9,4 @@ src-plugin = { path = "../src-plugin" }
 
 [dev-dependencies]
 tempfile = "3"
+src-plugin-types = { path = "../src-plugin-types" }
