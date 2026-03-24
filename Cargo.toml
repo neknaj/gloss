@@ -2,6 +2,8 @@
 members = [
     "src-core",
     "src-web",
-    "src-cli"
+    "src-cli",
+    "src-plugin-types",
+    "src-plugin"
 ]
 resolver = "2"

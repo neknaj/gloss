@@ -1,0 +1,12 @@
+[package]
+name = "src-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+src-core = { path = "../src-core" }
+src-plugin-types = { path = "../src-plugin-types" }
+extism = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
