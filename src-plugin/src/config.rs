@@ -96,9 +96,17 @@ impl GlossConfig {
         }
     }
 
-    /// Returns a new config with per-file front matter overrides applied.
+    /// Apply per-document front matter overrides to the config.
+    ///
     /// The `plugins` front matter key must be inline JSON:
     /// `{"lint":{"rule":false},"list":[...]}`
+    ///
+    /// # Security
+    /// If front matter includes a `plugins.list` key, it replaces the plugin
+    /// list and may specify arbitrary file paths for WASM loading.
+    /// This is safe only when document authors are trusted (e.g. local files).
+    /// Do not process untrusted documents with `plugins.list` overrides enabled
+    /// in an automated pipeline without additional path validation.
     pub fn with_front_matter_override(&self, fields: &[FrontMatterField<'_>]) -> Self {
         let mut result = self.clone();
 

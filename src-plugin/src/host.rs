@@ -141,7 +141,10 @@ impl GlossPluginHost {
             };
             let json = match serde_json::to_string(&input) {
                 Ok(j) => j,
-                Err(_) => continue,
+                Err(e) => {
+                    eprintln!("[gloss-plugin:{}] lint-rule serialization failed: {e}", p.id);
+                    continue;
+                }
             };
             match p.instance.call::<&str, String>("lint_rule", &json) {
                 Ok(raw) => {

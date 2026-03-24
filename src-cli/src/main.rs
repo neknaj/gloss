@@ -164,13 +164,6 @@ fn main() {
     let warnings = parser.warnings.clone();
     let events: Vec<_> = parser.collect();
 
-    if !warnings.is_empty() {
-        for w in &warnings {
-            eprintln!("\x1b[33m[{}:{}:{}] {} — {}\x1b[0m",
-                w.source, w.line, w.col, w.code, w.message);
-        }
-    }
-
     let fm_fields: Vec<_> = events.iter().filter_map(|e| {
         if let src_core::parser::Event::FrontMatter(fields) = e {
             Some(fields.as_slice())
@@ -178,12 +171,24 @@ fn main() {
     }).next().unwrap_or(&[]).to_vec();
     let effective_cfg = cfg.with_front_matter_override(&fm_fields);
 
+    if !warnings.is_empty() {
+        for w in warnings.iter().filter(|w| effective_cfg.lint.is_enabled(&w.code)) {
+            eprintln!("\x1b[33m[{}:{}:{}] {} — {}\x1b[0m",
+                w.source, w.line, w.col, w.code, w.message);
+        }
+    }
+
+    let filtered_warnings: Vec<_> = warnings.iter()
+        .filter(|w| effective_cfg.lint.is_enabled(&w.code))
+        .cloned()
+        .collect();
+
     let mut host = GlossPluginHost::new(&effective_cfg.plugins);
 
     let plugin_warnings = host.run_lint_rule(
         &source,
         &text,
-        &to_plugin_warnings(&warnings),
+        &to_plugin_warnings(&filtered_warnings),
         &events,
     );
     for w in &plugin_warnings {
