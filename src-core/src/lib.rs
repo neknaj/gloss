@@ -6,7 +6,7 @@ pub mod parser;
 pub mod html;
 
 pub use parser::{Parser, Event, Tag, Warning, FrontMatterField, fnv1a, split_source_blocks};
-pub use html::{push_html, push_html_with_ids, HtmlRenderer};
+pub use html::{push_html, push_html_with_ids, HtmlRenderer, escape_html};
 
 #[cfg(test)]
 mod tests {
