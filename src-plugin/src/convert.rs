@@ -1,6 +1,5 @@
 // Re-export conversion utilities that have moved to src-plugin-types.
 pub use src_plugin_types::to_plugin_events;
-pub use src_plugin_types::tag_to_string;
 
 use src_plugin_types::PluginWarning;
 use src_core::parser::Warning;

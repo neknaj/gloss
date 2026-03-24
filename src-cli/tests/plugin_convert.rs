@@ -1,4 +1,4 @@
-use src_plugin::convert::{to_plugin_events, to_plugin_warnings, tag_to_string};
+use src_plugin::convert::{to_plugin_events, to_plugin_warnings};
 use src_plugin_types::PluginEvent;
 use src_core::parser::{Event, Tag, Warning};
 
@@ -36,7 +36,10 @@ fn converts_warnings() {
 
 #[test]
 fn tag_to_string_paragraph() {
-    assert_eq!(tag_to_string(&Tag::Paragraph), "Paragraph");
+    // tag_to_string is now private; verify the string via to_plugin_events instead.
+    let events = vec![Event::Start(Tag::Paragraph)];
+    let result = to_plugin_events(&events);
+    assert_eq!(result[0], PluginEvent::Start { tag: "Paragraph".to_string() });
 }
 
 #[test]

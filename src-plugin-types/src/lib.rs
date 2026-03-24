@@ -1,5 +1,7 @@
 #![no_std]
 extern crate alloc;
+// Shared types between plugin host (src-plugin) and plugin PDK authors.
+// No Extism dependency — pure serde.
 
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -125,7 +127,7 @@ fn to_plugin_event(event: &Event<'_>) -> Option<PluginEvent> {
     })
 }
 
-pub fn tag_to_string(tag: &Tag) -> String {
+fn tag_to_string(tag: &Tag) -> String {
     match tag {
         Tag::Paragraph           => "Paragraph".into(),
         Tag::Heading(n)          => format!("Heading({n})"),
