@@ -292,14 +292,21 @@
 
         // ── Main render function ───────────────────────────────────
         function render() {
-            if (typeof render_with_warnings !== 'function') return;
-            let result;
-            try {
-                result = JSON.parse(render_with_warnings(editor.value, 'playground.n.md'));
-            } catch(e) {
-                console.error('[JS] render_with_warnings failed:', e);
+            console.debug('[render] called, typeof render_with_warnings =', typeof render_with_warnings);
+            if (typeof render_with_warnings !== 'function') {
+                console.warn('[render] render_with_warnings not available yet');
                 return;
             }
+            let raw, result;
+            try {
+                raw = render_with_warnings(editor.value, 'playground.n.md');
+                console.debug('[render] raw JSON length =', raw.length, 'preview =', raw.slice(0, 120));
+                result = JSON.parse(raw);
+            } catch(e) {
+                console.error('[render] failed:', e, 'raw =', raw);
+                return;
+            }
+            console.debug('[render] html length =', result.html.length, 'warnings =', result.warnings.length);
             applyDiff(result.html);
             showWarnings(result.warnings);
         }
@@ -322,14 +329,17 @@
 
         // ── Load sample on WASM ready ──────────────────────────────
         window.addEventListener('wasm-ready', () => {
+            console.log('[wasm-ready] fired, typeof render_with_warnings =', typeof render_with_warnings);
             fetch('sample.n.md')
-                .then(r => r.text())
+                .then(r => { console.log('[fetch sample] status =', r.status); return r.text(); })
                 .then(text => {
+                    console.log('[fetch sample] loaded', text.length, 'chars');
                     editor.value = text;
                     render();
                 })
-                .catch(err => console.warn('Could not load sample.n.md:', err));
+                .catch(err => console.warn('[fetch sample] failed:', err));
         });
+        console.log('[script] loaded, waiting for wasm-ready');
     </script>
 </body>
 </html>
