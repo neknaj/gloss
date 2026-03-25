@@ -1,15 +1,14 @@
 use alloc::collections::BTreeMap;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use alloc::vec::Vec;
 
-use src_core::{HtmlRenderer, Parser, fnv1a};
+use src_core::{Parser, fnv1a};
 use src_editor::{
     EditorState, Highlighter, HighlightContext,
-    cursor::Cursor,
 };
 use src_desktop_types::{
     AppCmd, AppConfig, AppEvent, CursorDisplay, DirEntry, DocId, EditorLine, EditorViewModel,
-    FileSystem, FsError, HtmlPatch, ImeEvent, KeyCode, KeyEvent, PaneId, PluginHost,
+    FileSystem, FsError, HtmlPatch, ImeEvent, KeyCode, KeyEvent, PluginHost,
     PreeditDraw, VfsPath,
 };
 use src_plugin_types::{
@@ -190,6 +189,7 @@ impl<Fs: FileSystem, Ph: PluginHost> AppCore<Fs, Ph> {
     // ── Front matter config override ──────────────────────────────────────────
 
     pub fn apply_front_matter(&mut self, doc_id: DocId, _fields: &[PluginFrontMatterField]) {
+        // TODO: Parse fields into AppConfig override (fm_config). Currently a stub.
         if let Some(doc) = self.docs.get_mut(&doc_id) {
             doc.fm_config = None;
         }
@@ -232,6 +232,7 @@ impl<Fs: FileSystem, Ph: PluginHost> AppCore<Fs, Ph> {
 
         let block_hashes = alloc::vec![fnv1a(&html)];
 
+        // Clone into cache; return originals to caller.
         let doc = self.docs.get_mut(&doc_id)?;
         doc.last_html         = Some(html.clone());
         doc.last_block_hashes = block_hashes.clone();
@@ -244,6 +245,7 @@ impl<Fs: FileSystem, Ph: PluginHost> AppCore<Fs, Ph> {
     pub fn render_diff(&mut self, doc_id: DocId)
         -> Option<(Vec<HtmlPatch>, Vec<PW>)>
     {
+        // TODO: Implement per-block diff. Currently returns the whole document as a single patch.
         let (html, hashes, warnings) = self.render_full(doc_id)?;
         let hash = hashes.into_iter().next().unwrap_or(0);
         Some((alloc::vec![HtmlPatch { block_id: hash, html }], warnings))
@@ -350,7 +352,7 @@ impl<Fs: FileSystem, Ph: PluginHost> AppCore<Fs, Ph> {
 fn update_ctx(line: &str, ctx: HighlightContext) -> HighlightContext {
     match ctx {
         HighlightContext::Normal => {
-            if line.starts_with("```") { HighlightContext::InCodeBlock { lang: "text" } }
+            if line.trim_start().starts_with("```") { HighlightContext::InCodeBlock { lang: "text" } }
             else if line.trim_start().starts_with("$$") { HighlightContext::InMathBlock }
             else { HighlightContext::Normal }
         }
