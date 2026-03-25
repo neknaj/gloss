@@ -7,5 +7,6 @@ members = [
     "src-plugin",
     "src-desktop-types",
     "src-editor",
+    "src-desktop-layout",
 ]
 resolver = "2"
