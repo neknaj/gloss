@@ -8,5 +8,6 @@ members = [
     "src-desktop-types",
     "src-editor",
     "src-desktop-layout",
+    "src-desktop-core",
 ]
 resolver = "2"

@@ -1696,6 +1696,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "src-desktop-core"
+version = "0.1.0"
+dependencies = [
+ "src-core",
+ "src-desktop-types",
+ "src-editor",
+ "src-plugin-types",
+]
+
+[[package]]
+name = "src-desktop-layout"
+version = "0.1.0"
+dependencies = [
+ "src-desktop-types",
+ "src-plugin-types",
+]
+
+[[package]]
 name = "src-desktop-types"
 version = "0.1.0"
 dependencies = [

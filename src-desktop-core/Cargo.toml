@@ -1,0 +1,13 @@
+[package]
+name = "src-desktop-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+src-core          = { path = "../src-core" }
+src-editor        = { path = "../src-editor" }
+src-desktop-types = { path = "../src-desktop-types" }
+src-plugin-types  = { path = "../src-plugin-types" }
+
+[dev-dependencies]
+src-desktop-types = { path = "../src-desktop-types", features = ["test-utils"] }
