@@ -2,7 +2,9 @@ use src_desktop_types::{PluginHost, PluginEntrySpec};
 use src_plugin::host::GlossPluginHost;
 use src_plugin_types::{CardLinkOutput, PluginEvent, PluginFrontMatterField, PluginWarning};
 
-/// Newtype wrapper that bridges GlossPluginHost to the PluginHost trait.
+/// Newtype wrapper bridging `GlossPluginHost` to the `PluginHost` trait.
+/// A direct `impl PluginHost for GlossPluginHost` is not possible here because
+/// both types are defined in foreign crates (orphan rule).
 pub struct NativePluginHost(pub GlossPluginHost);
 
 impl PluginHost for NativePluginHost {
@@ -35,7 +37,10 @@ pub fn make_plugin_host(specs: &[PluginEntrySpec]) -> NativePluginHost {
             id:     s.id.clone(),
             path:   s.path.as_str().to_string(),
             hooks:  s.hooks.clone(),
-            config: serde_json::from_str(&s.config).unwrap_or(serde_json::Value::Null),
+            config: serde_json::from_str(&s.config).unwrap_or_else(|e| {
+                eprintln!("[gloss-plugin:{}] invalid config JSON: {e}", s.id);
+                serde_json::Value::Null
+            }),
         }
     }).collect();
     NativePluginHost(GlossPluginHost::new(&entries))
