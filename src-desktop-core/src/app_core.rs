@@ -475,4 +475,20 @@ mod tests {
         assert!(events.is_empty());
         assert_eq!(shell.len(), 1);
     }
+
+    #[test]
+    fn renderer_intercepts_code_block_via_noop() {
+        use src_desktop_types::{AppConfig, MemoryVfs, VfsPath};
+        use src_desktop_types::noop::NoopPluginHost;
+        use crate::AppCore;
+        let mut core: AppCore<MemoryVfs, NoopPluginHost> =
+            AppCore::new(MemoryVfs::default(), NoopPluginHost, AppConfig::default());
+        let md = b"```rust\nfn main() {}\n```";
+        let (doc_id, _) = core.open_bytes(VfsPath::from("x.n.md"), md.to_vec());
+        let result = core.render_full(doc_id);
+        assert!(result.is_some());
+        let (html, _, _) = result.unwrap();
+        // fallback renders a <pre><code> block containing the source
+        assert!(html.contains("main"));
+    }
 }
