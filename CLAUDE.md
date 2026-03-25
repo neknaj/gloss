@@ -69,3 +69,42 @@ Integration tests live in `src-core/tests/integration.rs`. Each test calls `rend
 ## Syntax Reference
 
 The notation summary from the README is the authoritative source. `doc/spec.md` contains the formal AST specification for the parser. The `Tag` enum in `parser.rs` directly maps to the AST node types defined there.
+
+## Versioning Policy
+
+All crates follow **[Semantic Versioning](https://semver.org/)** in `0.x.y` pre-1.0 form. Breaking changes are allowed until v1.0.
+
+### Release Tags
+
+GitHub releases use component-prefixed tags so CLI and Desktop can release independently:
+
+| Component | Tag format | Example |
+|-----------|------------|---------|
+| CLI tool | `cli/vX.Y.Z` | `cli/v0.1.0` |
+| Desktop app | `desktop/vX.Y.Z` | `desktop/v0.1.0` |
+| Core library | `core/vX.Y.Z` | `core/v0.1.0` |
+| All-in-one (v1.0+) | `vX.Y.Z` | `v1.0.0` |
+
+### Version Bump Rules (pre-1.0)
+
+- **patch** (`Z`): bug fixes only
+- **minor** (`Y`): new features, reworks, breaking changes OK
+- **major** stays `0` until production-ready
+
+Crate versions in `Cargo.toml` are bumped per-crate at release time. Keep all crate versions in sync (they all live at the same `x.y.z`) even if not all are being released.
+
+### Release Workflow
+
+```sh
+# 1. Bump version in relevant Cargo.toml(s) if needed, commit
+git commit -m "chore: bump cli to vX.Y.Z"
+
+# 2. Tag
+git tag cli/vX.Y.Z
+
+# 3. Push branch + tag
+git push && git push origin cli/vX.Y.Z
+
+# 4. Create GitHub release
+gh release create cli/vX.Y.Z --title "CLI vX.Y.Z" --notes "..."
+```
