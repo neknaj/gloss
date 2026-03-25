@@ -9,5 +9,6 @@ members = [
     "src-editor",
     "src-desktop-layout",
     "src-desktop-core",
+    "src-desktop-native",
 ]
 resolver = "2"

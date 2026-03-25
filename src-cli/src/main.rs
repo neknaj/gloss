@@ -5,7 +5,7 @@ use src_core::parser::Parser;
 use src_plugin::config::GlossConfig;
 use src_plugin::host::GlossPluginHost;
 use src_plugin::renderer::PluginAwareRenderer;
-use src_plugin::convert::to_plugin_warnings;
+use src_plugin::convert::{to_plugin_warnings, to_plugin_events};
 
 const HTML_HEAD: &str = r#"<!doctype html>
 <html lang="ja">
@@ -185,11 +185,12 @@ fn main() {
 
     let mut host = GlossPluginHost::new(&effective_cfg.plugins);
 
+    let plugin_events = to_plugin_events(&events);
     let plugin_warnings = host.run_lint_rule(
         &source,
         &text,
         &to_plugin_warnings(&filtered_warnings),
-        &events,
+        &plugin_events,
     );
     for w in &plugin_warnings {
         eprintln!("\x1b[33m[{}:{}:{}] {} — {}\x1b[0m",

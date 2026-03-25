@@ -1,0 +1,13 @@
+[package]
+name = "src-desktop-native"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+src-desktop-types = { path = "../src-desktop-types" }
+src-plugin         = { path = "../src-plugin" }
+src-plugin-types   = { path = "../src-plugin-types" }
+serde_json         = "1"
+
+[dev-dependencies]
+tempfile = "3"

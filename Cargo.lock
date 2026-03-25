@@ -1714,6 +1714,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "src-desktop-native"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "src-desktop-types",
+ "src-plugin",
+ "src-plugin-types",
+ "tempfile",
+]
+
+[[package]]
 name = "src-desktop-types"
 version = "0.1.0"
 dependencies = [
