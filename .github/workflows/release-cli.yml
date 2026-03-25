@@ -17,11 +17,11 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            binary: gloss-cli
+            binary: src-cli
             asset_name: gloss-cli-linux-x86_64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            binary: gloss-cli.exe
+            binary: src-cli.exe
             asset_name: gloss-cli-windows-x86_64.exe
 
     steps:
