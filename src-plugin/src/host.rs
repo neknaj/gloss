@@ -6,8 +6,7 @@ use src_plugin_types::{
     FrontMatterInput, FrontMatterOutput,
     PluginWarning, PluginFrontMatterField,
 };
-use crate::convert::to_plugin_events;
-use src_core::parser::Event;
+use src_plugin_types::PluginEvent;
 
 pub struct LoadedPlugin {
     pub id: String,
@@ -119,14 +118,13 @@ impl GlossPluginHost {
     }
 
     /// `lint-rule` hook — all plugins run, warnings merged.
-    pub fn run_lint_rule<'a>(
+    pub fn run_lint_rule(
         &mut self,
         source: &str,
         markdown: &str,
         existing_warnings: &[PluginWarning],
-        events: &[Event<'a>],
+        events: &[PluginEvent],
     ) -> Vec<PluginWarning> {
-        let plugin_events = to_plugin_events(events);
         let mut all_warnings = Vec::new();
         for p in &mut self.plugins {
             if !p.hooks.iter().any(|h| h == "lint-rule") {
@@ -136,7 +134,7 @@ impl GlossPluginHost {
                 source: source.to_string(),
                 markdown: markdown.to_string(),
                 existing_warnings: existing_warnings.to_vec(),
-                events: plugin_events.clone(),
+                events: events.to_vec(),
                 config: p.config.clone(),
             };
             let json = match serde_json::to_string(&input) {
@@ -208,6 +206,15 @@ mod tests {
     fn empty_host_lint_returns_empty() {
         let mut host = GlossPluginHost { plugins: vec![] };
         let result = host.run_lint_rule("test.n.md", "# hi", &[], &[]);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn run_lint_rule_accepts_plugin_events() {
+        use src_plugin_types::PluginEvent;
+        let mut host = GlossPluginHost { plugins: vec![] };
+        let events: Vec<PluginEvent> = vec![];
+        let result = host.run_lint_rule("test.n.md", "# hi", &[], &events);
         assert!(result.is_empty());
     }
 }
