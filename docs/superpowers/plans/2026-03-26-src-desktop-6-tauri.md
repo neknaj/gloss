@@ -12,6 +12,27 @@
 
 ---
 
+## ⚠️ 実装済み逸脱 — Tasks 1–5 は完了済み。以下の変更が適用されている
+
+Tasks 1–5 のコードはこのプランどおりには **実装されていない**。
+コードレビューで発見された修正が適用された。次のセッションが Tasks 6–9 を実装する際に
+コンフリクトを起こさないよう、変更内容を以下に記す。
+
+| # | 変更箇所 | 内容 |
+|---|---------|------|
+| 1 | `src-desktop-types/src/events.rs` | `AppEvent::FileLoaded` に `doc_id: DocId` フィールドを追加 |
+| 2 | `src-desktop/src/commands.rs` | `ReadFile` ハンドラが `core.open_bytes()` を呼んでから `FileLoaded` を emit |
+| 3 | `src-desktop/src/commands.rs` | `s.model.clone()` → `std::mem::replace` (Model は Clone 未実装) |
+| 4 | `src-desktop/src/commands.rs` | `ImeSource`, `Clipboard`, `Model` を use に追加 |
+| 5 | `src-desktop/src/commands.rs` | `ScheduleRender` — `DocId(0)` センチネルを廃止、active doc がなければスキップ |
+| 6 | `src-desktop/Cargo.toml` | `crate-type` に `rlib` 追加 (binary が lib を使うため必須) |
+| 7 | `src-desktop/icons/icon.png` | Tauri ビルドに必要な 32×32 プレースホルダー PNG を追加 |
+| 8 | `src-desktop-layout/src/update.rs` | `update_file_loaded` が `doc_id` を引数で受け取り `next_doc_id` カウンター非使用に |
+
+このプランのコードは上記修正を反映済みである。
+
+---
+
 ## Scope Note
 
 This plan covers two independent subsystems (Rust backend and TypeScript frontend). Tasks 1–5 are pure Rust; Tasks 6–8 are pure TypeScript. Task 9 refactors `src-cli`. Each group is independently buildable and testable.
@@ -77,7 +98,7 @@ edition = "2021"
 
 [lib]
 name = "src_desktop_lib"
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
 name = "src-desktop"
@@ -501,12 +522,14 @@ This is the main event loop (spec §8.5). Runs inside `tokio::task::spawn_blocki
 - [ ] **Step 5.1: Replace `src-desktop/src/commands.rs`**
 
 ```rust
-use std::sync::{Arc, Mutex};
-use src_desktop_types::{AppCmd, AppEvent, DrawCmd, ImeEvent};
-use src_desktop_layout::{update, view};
+use src_desktop_types::{AppCmd, AppEvent, Clipboard, DrawCmd, ImeEvent, ImeSource};
+use src_desktop_layout::{update, view, Model};
 use crate::state::{AppState, SharedState};
 
 // ── Main dispatch command ─────────────────────────────────────────────────────
+//
+// IMPORTANT: Model は Clone を実装していない。update() に渡すには
+// std::mem::replace で一時的に取り出し、戻り値で上書きする。
 
 #[tauri::command]
 pub async fn dispatch(
@@ -521,24 +544,27 @@ pub async fn dispatch(
         // 1. Drain IME queue first
         while let Some(ime_ev) = s.ime.poll_event() {
             apply_editor_mutation(&mut s, &AppEvent::Ime(ime_ev.clone()));
-            let (m, cmds) = update(s.model.clone(), AppEvent::Ime(ime_ev));
+            let model = std::mem::replace(&mut s.model, Model::new(0, 0));
+            let (m, cmds) = update(model, AppEvent::Ime(ime_ev));
             s.model = m;
             let (events, shell_cmds) = s.core.execute_cmds(cmds);
             let extra = dispatch_shell_cmds(&mut s, shell_cmds, &window);
             for ev in events.into_iter().chain(extra) {
-                let (m, _) = update(s.model.clone(), ev);
+                let model = std::mem::replace(&mut s.model, Model::new(0, 0));
+                let (m, _) = update(model, ev);
                 s.model = m;
             }
         }
 
-        // 2. Main event — up to 8 re-dispatch rounds
+        // 2. Main event — up to 8 re-dispatch rounds (bound prevents infinite loops)
         let mut pending = vec![event];
         for _ in 0..8 {
             if pending.is_empty() { break; }
             let mut next = Vec::new();
             for ev in pending.drain(..) {
                 apply_editor_mutation(&mut s, &ev);
-                let (m, cmds) = update(s.model.clone(), ev);
+                let model = std::mem::replace(&mut s.model, Model::new(0, 0));
+                let (m, cmds) = update(model, ev);
                 s.model = m;
                 let (events, shell_cmds) = s.core.execute_cmds(cmds);
                 let extra = dispatch_shell_cmds(&mut s, shell_cmds, &window);
@@ -587,7 +613,6 @@ fn dispatch_shell_cmds(
     window: &tauri::WebviewWindow,
 ) -> Vec<AppEvent> {
     use tauri::Emitter;
-    use src_desktop_types::{AppConfig, VfsPath};
 
     let mut extra = Vec::new();
     for cmd in cmds {
@@ -611,7 +636,12 @@ fn dispatch_shell_cmds(
             }
             AppCmd::ReadFile { path } => {
                 match std::fs::read(path.as_str()) {
-                    Ok(content) => extra.push(AppEvent::FileLoaded { path, content }),
+                    Ok(content) => {
+                        // Register with AppCore first to get the canonical DocId.
+                        let (doc_id, vm) = s.core.open_bytes(path.clone(), content.clone());
+                        s.model.workspace.editors.insert(doc_id, vm);
+                        extra.push(AppEvent::FileLoaded { path, content, doc_id });
+                    }
                     Err(e) => extra.push(AppEvent::FileError {
                         path,
                         error: e.to_string(),
@@ -624,13 +654,10 @@ fn dispatch_shell_cmds(
             }
             AppCmd::ScheduleRender { pane_id, delay_ms: _ } => {
                 // TODO: honour delay_ms for debouncing; for now run immediately
-                // by pushing RunRender back into core
-                let cmds2 = vec![AppCmd::RunRender {
-                    pane_id,
-                    doc_id: s.model.active_doc_id().unwrap_or(src_desktop_types::DocId(0)),
-                }];
-                let (evs, _) = s.core.execute_cmds(cmds2);
-                extra.extend(evs);
+                if let Some(doc_id) = s.model.active_doc_id() {
+                    let (evs, _) = s.core.execute_cmds(vec![AppCmd::RunRender { pane_id, doc_id }]);
+                    extra.extend(evs);
+                }
             }
             AppCmd::ShowOpenFileDialog | AppCmd::ShowSaveFileDialog { .. } => {
                 // TODO: implement native file dialog via tauri-plugin-dialog
@@ -880,7 +907,6 @@ function applyLayout(panels: import('./types').PanelLayout[]): void {
 
 ```typescript
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import type { DrawCmd, AppEvent, KeyEvent, Modifiers } from './types';
 import { applyDrawCmds } from './renderer';
 import { setupImeBridge } from './ime-bridge';
@@ -1027,8 +1053,10 @@ html, body { background: var(--bg); color: var(--fg); height: 100vh; overflow: h
 
 - [ ] **Step 6.10: Install deps and verify TypeScript compiles**
 
+**注意:** ワークツリー内のフロントエンドディレクトリを使うこと。
+
 ```sh
-cd /mnt/d/project/gloss/src-desktop/frontend && npm install && npx tsc --noEmit 2>&1
+cd /mnt/d/project/gloss/.worktrees/src-desktop/src-desktop/frontend && npm install && npx tsc --noEmit 2>&1
 ```
 
 Expected: no TypeScript errors.
@@ -1062,7 +1090,7 @@ fn cursor_position_reflects_line_and_col() {
     // Add an editor pane with a doc open
     let doc_id = DocId(1);
     m.workspace.open_docs.insert(doc_id, DocMeta {
-        path: VfsPath::new("/test.n.md"),
+        path: VfsPath::from("/test.n.md"),
         title: "test".into(),
         dirty: false,
     });
@@ -1238,7 +1266,7 @@ function colorToHex(color: number): string {
 - [ ] **Step 7.6: Verify TypeScript compiles**
 
 ```sh
-cd /mnt/d/project/gloss/src-desktop/frontend && npx tsc --noEmit 2>&1
+cd /mnt/d/project/gloss/.worktrees/src-desktop/src-desktop/frontend && npx tsc --noEmit 2>&1
 ```
 
 Expected: no errors.
@@ -1392,7 +1420,7 @@ export function setupImeBridge(dispatch: (ev: AppEvent) => Promise<void>): void 
 - [ ] **Step 8.4: Verify TypeScript compiles**
 
 ```sh
-cd /mnt/d/project/gloss/src-desktop/frontend && npx tsc --noEmit 2>&1
+cd /mnt/d/project/gloss/.worktrees/src-desktop/src-desktop/frontend && npx tsc --noEmit 2>&1
 ```
 
 Expected: no errors.
@@ -1535,7 +1563,7 @@ fn main() {
     let host = make_plugin_host(&config.plugins);
     let mut core = AppCore::new(NativeFs, host, config);
 
-    let vpath = VfsPath::new(input_path);
+    let vpath = VfsPath::from(input_path.as_str());
     let doc_id = match core.open_file(&vpath) {
         Ok((id, _)) => id,
         Err(e) => {
