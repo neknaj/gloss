@@ -1,38 +1,38 @@
 # Plan 6 (src-desktop Tauri shell) — 引継ぎドキュメント
 
 作成日: 2026-03-26
+安定化確認日: 2026-03-26
+ワークスペース全テスト: **160 passed, 0 failed**
 
 ---
 
-## 現在の状態サマリ
+## 引継ぎ先がまず実行すること
 
-| 項目 | 状態 |
-|------|------|
-| Plan 6 プラン文書 | ✅ 作成済み (`docs/superpowers/plans/2026-03-26-src-desktop-6-tauri.md`) |
-| Task 1–5 (Rust バックエンド) | ✅ 実装・レビュー完了・コミット済み |
-| Task 6–8 (TypeScript フロントエンド) | ⏳ 未着手 |
-| Task 9 (src-cli リファクタ) | ⏳ 未着手 |
-| `cargo check -p src-desktop` | ✅ エラーなし |
-| システムライブラリ | ✅ インストール済み (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`) |
+```sh
+# ワークツリーに移動
+cd /mnt/d/project/gloss/.worktrees/src-desktop
+
+# 状態確認
+git log --oneline -6
+cargo check -p src-desktop   # エラーなしを確認
+cargo test --workspace       # 全 160 テスト PASS を確認
+```
 
 ---
 
-## 作業リポジトリ
+## 現在のブランチ状態
+
+| 項目 | 値 |
+|------|----|
+| 作業ブランチ | `feat/src-desktop` |
+| ワークツリーパス | `/mnt/d/project/gloss/.worktrees/src-desktop` |
+| メインブランチ | `main` |
+| ワークツリー状態 | クリーン（`src-desktop/gen/` のみ未追跡 = Tauri ビルド生成物） |
+
+### コミット履歴 (feat/src-desktop)
 
 ```
-メインブランチ: main (origin)
-作業ブランチ:   feat/src-desktop
-ワークツリー:   /mnt/d/project/gloss/.worktrees/src-desktop
-```
-
-作業は全て `feat/src-desktop` ブランチで進めること。
-完了後は `main` にローカルマージする。
-
----
-
-## コミット履歴 (feat/src-desktop)
-
-```
+583e924  fix(src-desktop-layout): update test to include doc_id in FileLoaded event
 7fd1c11  fix(src-desktop): DocId mismatch, unused import, sentinel, crate-type, icon
 038cf35  feat(src-desktop): dispatch Tauri command + event loop
 3a67303  feat(src-desktop): AppState and create_state()
@@ -43,181 +43,252 @@ f37d210  feat(src-desktop): Tauri project scaffold
 
 ---
 
-## 残タスク一覧
+## 完了タスク一覧 (Tasks 1–5)
 
-### Task 6: Frontend scaffold + renderer.ts
-**ファイル:** `src-desktop/frontend/` 以下の全ファイル
+| Task | 内容 | 実装ファイル |
+|------|------|------------|
+| 1 | Tauri プロジェクトスキャフォルド | `src-desktop/Cargo.toml`, `build.rs`, `tauri.conf.json`, `capabilities/default.json`, `src/main.rs`, `src/lib.rs`, `icons/icon.png` |
+| 2 | NativeClipboard | `src-desktop/src/clipboard.rs`, `src-desktop-types/src/traits.rs` (get_text → `&mut self`) |
+| 3 | TauriIme | `src-desktop/src/ime.rs` |
+| 4 | AppState + state.rs | `src-desktop/src/state.rs` |
+| 5 | dispatch コマンド + イベントループ | `src-desktop/src/commands.rs`, `src-desktop-types/src/events.rs` |
 
-プラン `2026-03-26-src-desktop-6-tauri.md` の Step 6.1〜6.11 に完全なコードが記載されている。
-作業ディレクトリは `src-desktop/frontend/` になる点に注意。
+### 計画書との重要な差異（実装済み）
 
-```sh
-cd /mnt/d/project/gloss/.worktrees/src-desktop/src-desktop/frontend
-npm install
-npx tsc --noEmit   # エラーなしを確認
-```
+以下は計画書のコードと実装が異なる箇所。次のタスクを実装する際に**この差異を前提とする**こと。
 
-### Task 7: view.rs カーソル位置修正 + editor-canvas.ts
-**ファイル:**
-- `src-desktop-layout/src/view.rs` — `CHAR_W`/`LINE_H` 定数追加、`emit_editor_frame` 修正
-- `src-desktop/frontend/src/editor-canvas.ts` — Canvas 2D テキスト描画実装
-
-プランの Step 7.1〜7.7 に完全なコードが記載されている。
-
-### Task 8: preview.ts + chrome.ts + ime-bridge.ts
-**ファイル:**
-- `src-desktop/frontend/src/preview.ts`
-- `src-desktop/frontend/src/chrome.ts`
-- `src-desktop/frontend/src/ime-bridge.ts`
-
-プランの Step 8.1〜8.5 に完全なコードが記載されている。
-
-### Task 9: src-cli リファクタ
-**ファイル:**
-- `src-cli/Cargo.toml` — `src-desktop-core`, `src-desktop-native` 依存追加、`src-core`/`src-plugin` 依存削除
-- `src-cli/src/main.rs` — `AppCore<NativeFs, NativePluginHost>` を使うパイプラインに書き直し
-
-プランの Step 9.1〜9.7 に完全なコードが記載されている。
-HTML_HEAD/HTML_TAIL 定数はそのまま残す。`src_core`/`src_plugin` の直接 import を全て削除する。
-
----
-
-## 計画ファイルからの重要な逸脱 (コードレビューで修正済み)
-
-計画書のコードと実際の実装が一部異なる。以下の点は**実装済みの正しい形**を使うこと。
-
-### 1. `AppEvent::FileLoaded` に `doc_id: DocId` フィールドが追加された
-
-**背景:** コードレビューで「layout と AppCore が別々に DocId カウンターを持ち、同じファイルに異なる DocId が割り当てられる」致命的バグが発見された。
-
-**修正内容:**
-
-`src-desktop-types/src/events.rs`:
-```rust
-// 変更前 (計画書のコード)
-FileLoaded  { path: VfsPath, content: Vec<u8> },
-
-// 変更後 (実装済みの正しいコード)
-FileLoaded  { path: VfsPath, content: Vec<u8>, doc_id: DocId },
-```
-
-`src-desktop/src/commands.rs` の `dispatch_shell_cmds` の `ReadFile` アーム:
-```rust
-AppCmd::ReadFile { path } => {
-    match std::fs::read(path.as_str()) {
-        Ok(content) => {
-            // AppCore に登録して canonical DocId を取得してから emit
-            let (doc_id, vm) = s.core.open_bytes(path.clone(), content.clone());
-            s.model.workspace.editors.insert(doc_id, vm);
-            extra.push(AppEvent::FileLoaded { path, content, doc_id });
-        }
-        Err(e) => extra.push(AppEvent::FileError { path, error: e.to_string() }),
-    }
-}
-```
-
-`src-desktop-layout/src/update.rs` の `update_file_loaded`:
-- `doc_id` を引数で受け取り、`next_doc_id` カウンターを使わない形に変更済み。
-
-### 2. `src-desktop/src/commands.rs` — `s.model.clone()` は使えない
-
-`Model` は `Clone` を実装していない。計画書のコードは `s.model.clone()` を多用しているが、実装では `std::mem::replace` を使う:
+#### 差異 1: `AppEvent::FileLoaded` に `doc_id: DocId` フィールドが存在する
 
 ```rust
-// 計画書のコード (コンパイルエラーになる)
-let (m, cmds) = update(s.model.clone(), event);
+// src-desktop-types/src/events.rs — 実際の定義
+FileLoaded { path: VfsPath, content: Vec<u8>, doc_id: DocId },
+```
 
-// 正しいコード (実装済み)
+**理由:** AppCore と layout が別々の DocId カウンターを持つと同じファイルに別 ID が割り当てられるバグを修正。`dispatch_shell_cmds` が `ReadFile` を処理する際に `core.open_bytes()` を呼んで canonical DocId を取得し、それを event に含める。
+
+#### 差異 2: `commands.rs` の imports と Model 操作
+
+```rust
+// 先頭 use 文
+use src_desktop_types::{AppCmd, AppEvent, Clipboard, DrawCmd, ImeEvent, ImeSource};
+use src_desktop_layout::{update, view, Model};
+
+// Model は Clone 未実装なので std::mem::replace を使う
 let model = std::mem::replace(&mut s.model, Model::new(0, 0));
 let (m, cmds) = update(model, event);
 s.model = m;
 ```
 
-`Model::new(0, 0)` はプレースホルダーで、直後に `s.model = m` で上書きされるので問題ない。
-
-### 3. trait import が必要
-
-`commands.rs` の先頭に以下の import が必要:
-```rust
-use src_desktop_types::{AppCmd, AppEvent, Clipboard, DrawCmd, ImeEvent, ImeSource};
-use src_desktop_layout::{update, view, Model};
-```
-
-### 4. `Cargo.toml` の `crate-type` に `rlib` が必要
+#### 差異 3: `Cargo.toml` の crate-type
 
 ```toml
-# 計画書のコード
-crate-type = ["staticlib", "cdylib"]
-
-# 正しいコード (実装済み)
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["staticlib", "cdylib", "rlib"]   # rlib がないと main.rs が lib を使えない
 ```
-
-`rlib` がないと `main.rs` から `src_desktop_lib::run()` が呼べない。
-
-### 5. `icons/icon.png` が必要
-
-`tauri::generate_context!()` マクロが `src-desktop/icons/icon.png` を参照する。
-プレースホルダーの 32×32 PNG を `src-desktop/icons/icon.png` に作成済み。
 
 ---
 
-## 作業を続ける手順
+## 残タスク一覧 (Tasks 6–9)
+
+### Task 6: Frontend scaffold + renderer.ts
+
+**参照:** `docs/superpowers/plans/2026-03-26-src-desktop-6-tauri.md` の Step 6.1〜6.11
+
+作成するファイル（全て `src-desktop/frontend/` 以下）:
+- `package.json` — `@tauri-apps/api@^2`, `typescript@^5`, `vite@^5`
+- `tsconfig.json`
+- `vite.config.ts` — `server.port: 1420`
+- `index.html` — `#tab-bar`, `#main-area > #editor-canvas + #preview-pane`, `#status-bar`
+- `src/types.ts` — DrawCmd / AppEvent の TypeScript 型定義
+- `src/renderer.ts` — DrawCmd を各モジュールに振り分け
+- `src/main.ts` — キーボード入力 → `invoke('dispatch', {event})` → `applyDrawCmds()`
+- `src/style.css` — ダークテーマ
+- `src/editor-canvas.ts` (stub)、`src/preview.ts` (stub)、`src/chrome.ts` (stub)、`src/ime-bridge.ts` (stub)
+
+**確認コマンド:**
+```sh
+cd /mnt/d/project/gloss/.worktrees/src-desktop/src-desktop/frontend
+npm install && npx tsc --noEmit
+```
+
+---
+
+### Task 7: view.rs カーソル位置修正 + editor-canvas.ts
+
+**参照:** Plan 6 Step 7.1〜7.7
+
+**Rust 変更 (`src-desktop-layout/src/view.rs`):**
+```rust
+// 追加する定数（pub にして TypeScript 側と共有する値として文書化）
+pub const CHAR_W: f32 = 8.0;   // ASCII 1文字の幅 (px)
+pub const LINE_H: f32 = 20.0;  // 1行の高さ (px)
+
+// emit_editor_frame を修正: cursor_x/y を vm.cursor から計算
+fn emit_editor_frame(cmds: &mut Vec<DrawCmd>, pane_id: PaneId, bounds: Rect, vm: &EditorViewModel) {
+    let cursor_x = vm.cursor.visual_col as f32 * CHAR_W - vm.scroll.x;
+    let cursor_y = vm.cursor.line       as f32 * LINE_H - vm.scroll.y;
+    cmds.push(DrawCmd::EditorFrame {
+        pane_id, bounds,
+        lines:     vm.visible_lines.clone(),
+        cursor:    CursorDraw { x: cursor_x, y: cursor_y, height: LINE_H },
+        selection: None,
+        preedit:   vm.preedit.clone(),
+        scroll:    vm.scroll,
+    });
+}
+```
+
+**テスト注意:** 計画書の test で `VfsPath::new()` を使っているが**存在しない**。`VfsPath::from()` を使うこと。
+
+```rust
+// 正しい
+path: VfsPath::from("/test.n.md"),
+// 計画書のコード（修正済み）も VfsPath::from になっている
+```
+
+**TypeScript (`src-desktop/frontend/src/editor-canvas.ts`):**
+- Canvas 2D API でテキスト・カーソル・選択範囲・preedit を描画
+- `CHAR_W = 8`, `LINE_H = 20` は Rust の定数と一致させること
+- CJK 文字は `CHAR_W * 2` として幅計算
+
+---
+
+### Task 8: preview.ts + chrome.ts + ime-bridge.ts
+
+**参照:** Plan 6 Step 8.1〜8.5
+
+| ファイル | 役割 |
+|---------|------|
+| `preview.ts` | `innerHTML` で HTML をマウント、KaTeX 再レンダリング |
+| `chrome.ts` | タブバー・ステータスバーの DOM 操作 |
+| `ime-bridge.ts` | `compositionstart/update/end` → `invoke('push_ime_event', {event})` |
+
+**ime-bridge.ts の要点:**
+- `canvas` の click で hidden `<input>` にフォーカス
+- `compositionend` で `Commit` event を push してから `dispatch` で Key event を送り再描画を起こす
+- Rust からの `ime-cursor-area` カスタムイベントで hidden input の位置を更新
+
+---
+
+### Task 9: src-cli リファクタリング (spec §10)
+
+**参照:** Plan 6 Step 9.1〜9.6
+
+**目的:** `src-cli` の変換パイプラインを `AppCore<NativeFs, NativePluginHost>` に統一する。
+`src-core`・`src-plugin` の直接 import を全て削除。HTML_HEAD/HTML_TAIL 定数は維持。
+
+**`src-cli/Cargo.toml` の変更:**
+```toml
+[dependencies]
+src-desktop-core   = { path = "../src-desktop-core" }
+src-desktop-native = { path = "../src-desktop-native" }
+src-desktop-types  = { path = "../src-desktop-types" }
+# src-core と src-plugin の依存を削除
+```
+
+**`src-cli/src/main.rs` の新パイプライン（骨子）:**
+```rust
+use src_desktop_types::VfsPath;
+use src_desktop_core::AppCore;
+use src_desktop_native::{NativeFs, make_plugin_host, load_app_config};
+
+let config = load_app_config(config_path);
+let host   = make_plugin_host(&config.plugins);
+let mut core = AppCore::new(NativeFs, host, config);
+
+let vpath  = VfsPath::from(input_path.as_str());   // ← VfsPath::new() は存在しない
+let doc_id = core.open_file(&vpath).unwrap_or_else(|e| { eprintln!(...); exit(1) }).0;
+let (html_body, _, warnings) = core.render_full(doc_id).unwrap_or_else(|| { ... });
+
+for w in &warnings { eprintln!(...) }
+fs::write(output_path, format!("{HTML_HEAD}{html_body}{HTML_TAIL}"))?;
+```
+
+**注意:** `PluginWarning` の `line`/`col` フィールドは `u32` 型。
+`render_full` は `Option<(String, Vec<u64>, Vec<PluginWarning>)>` を返す。
+
+---
+
+## 各タスクの完了後の確認コマンド
 
 ```sh
-# ワークツリーに移動
+# Task 6 完了確認
+cd /mnt/d/project/gloss/.worktrees/src-desktop/src-desktop/frontend
+npx tsc --noEmit
+
+# Task 7 完了確認
+cargo test -p src-desktop-layout cursor_position
+cargo test --workspace 2>&1 | grep "FAILED"   # 0 件
+
+# Task 8 完了確認
+cd /mnt/d/project/gloss/.worktrees/src-desktop/src-desktop/frontend
+npx tsc --noEmit
+
+# Task 9 完了確認
+cargo test --workspace 2>&1 | grep "FAILED"   # 0 件
+cargo run -p src-cli -- /tmp/test.n.md /tmp/test.html 2>&1
+grep "nm-ruby" /tmp/test.html
+```
+
+---
+
+## 全タスク完了後のマージ・リリース手順
+
+```sh
+# 1. ワークスペース全テスト確認
 cd /mnt/d/project/gloss/.worktrees/src-desktop
+cargo test --workspace 2>&1 | grep "FAILED"   # 0 件
 
-# 現在の状態確認
-cargo check -p src-desktop    # エラーなしを確認
-git log --oneline -5
+# 2. main にマージ（ローカル）
+git checkout main
+git merge feat/src-desktop --no-ff -m "feat: src-desktop Tauri shell + src-cli AppCore pipeline"
 
-# Task 6 開始 (フロントエンドスキャフォルド)
-# → docs/superpowers/plans/2026-03-26-src-desktop-6-tauri.md の Task 6 を参照
-mkdir -p src-desktop/frontend/src
-# ... (プランの Step 6.1〜6.11 を実行)
-```
+# 3. タグを打つ
+git tag cli/v0.2.0     # src-cli リファクタ含む
+git tag desktop/v0.1.0 # 最初のデスクトップリリース（pre-alpha）
 
----
-
-## 完了後の作業
-
-全 Task 完了後:
-1. `feat/src-desktop` を `main` にローカルマージ
-2. `cli/v0.2.0` タグ (src-cli リファクタ含む)
-3. `desktop/v0.1.0` タグ (最初のデスクトップリリース)
-
-```sh
-git checkout main && git merge feat/src-desktop
-git tag cli/v0.2.0 && git tag desktop/v0.1.0
+# 4. プッシュ
 git push && git push --tags
-gh release create cli/v0.2.0 --title "CLI v0.2.0 (AppCore pipeline)" --notes "..."
-gh release create desktop/v0.1.0 --title "Desktop v0.1.0 (Tauri shell)" --notes "..."
+
+# 5. GitHub リリース作成
+gh release create cli/v0.2.0     --title "CLI v0.2.0 (AppCore pipeline)" --notes "..."
+gh release create desktop/v0.1.0 --title "Desktop v0.1.0 (Tauri shell, pre-alpha)" --notes "..."
 ```
 
 ---
 
-## 関連ドキュメント
-
-| ドキュメント | 内容 |
-|------------|------|
-| `docs/superpowers/plans/2026-03-26-src-desktop-6-tauri.md` | **Plan 6** — Task 1〜9 の完全なコード付き実装計画 |
-| `docs/superpowers/specs/2026-03-24-src-desktop-design.md` | 設計仕様 §8 (Tauri shell), §10 (src-cli refactor) |
-| `CLAUDE.md` | バージョニングポリシー、リリースワークフロー |
-
----
-
-## ワークスペース構成 (現在)
+## ワークスペース構成（現時点）
 
 ```
 /mnt/d/project/gloss/
 ├── src-core/               # no_std パーサ・HTML生成
-├── src-cli/                # CLI バイナリ (Task 9 でリファクタ予定)
+├── src-cli/                # CLI バイナリ ← Task 9 でリファクタ
 ├── src-web/                # WASM ビルド
-├── src-desktop-types/      # 共有型 (AppEvent, DrawCmd, etc.)
+├── src-desktop-types/      # 共有型 (AppEvent, DrawCmd, DocId, …)
 ├── src-desktop-core/       # AppCore<Fs, Ph> — ドキュメント管理・レンダリング
 ├── src-desktop-layout/     # Model, update(), view() — Elm アーキテクチャ
-├── src-desktop-native/     # NativeFs, NativePluginHost (std)
-└── .worktrees/src-desktop/ # feat/src-desktop ブランチのワークツリー
-    └── src-desktop/        # Tauri クレート (Tasks 1-5 完了)
+├── src-desktop-native/     # NativeFs, NativePluginHost (std 依存)
+└── .worktrees/src-desktop/ ← feat/src-desktop ブランチ
+    └── src-desktop/        # Tauri クレート
+        ├── Cargo.toml      # crate-type: [staticlib, cdylib, rlib]
+        ├── build.rs
+        ├── tauri.conf.json # frontendDist: ../frontend/dist, devUrl: localhost:1420
+        ├── capabilities/default.json
+        ├── icons/icon.png  # 32×32 プレースホルダー
+        └── src/
+            ├── main.rs         # fn main() → src_desktop_lib::run()
+            ├── lib.rs          # Tauri Builder, manage(SharedState), invoke_handler
+            ├── clipboard.rs    # NativeClipboard(arboard::Clipboard)
+            ├── ime.rs          # TauriIme { queue: VecDeque<ImeEvent> }
+            ├── state.rs        # AppState, SharedState, create_state()
+            └── commands.rs     # dispatch, push_ime_event, dispatch_shell_cmds
 ```
+
+---
+
+## 参照ドキュメント
+
+| ドキュメント | 内容 |
+|------------|------|
+| `docs/superpowers/plans/2026-03-26-src-desktop-6-tauri.md` | Plan 6 — Task 1〜9 の完全なコード付き実装計画（修正済み） |
+| `docs/superpowers/specs/2026-03-24-src-desktop-design.md` | 設計仕様 §8 (Tauri shell), §10 (src-cli refactor) |
+| `CLAUDE.md` | バージョニングポリシー、リリースワークフロー |
